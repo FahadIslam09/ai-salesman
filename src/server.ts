@@ -9,11 +9,12 @@ import { apiRouter } from "./routes/api";
 const app = express();
 
 app.use(cors({ origin: env.dashboardUrl, credentials: true }));
+app.all("/api/auth/*splat", toNodeHandler(auth));
+
 app.use(express.json({ limit: "1mb" }));
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 app.use("/webhook", webhookRouter);
-app.all("/api/auth/*", toNodeHandler(auth));
 app.use("/api", apiRouter);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "../../db/db";
-import { faqs, knowledgeRequests } from "../../db/schema";
+import { conversations, faqs, knowledgeRequests } from "../../db/schema";
 import { requireAuth } from "../middleware/auth";
 import { assertPageOwnedByUser } from "../middleware/pageAccess";
 
@@ -92,6 +92,12 @@ knowledgeRouter.post("/requests/:id/answer", async (req, res) => {
     .update(knowledgeRequests)
     .set({ answer, status: "answered", answeredAt: new Date() })
     .where(eq(knowledgeRequests.id, request.id));
+  if (request.conversationId) {
+    await db
+      .update(conversations)
+      .set({ attentionReason: null })
+      .where(eq(conversations.id, request.conversationId));
+  }
   if (saveToFaq) {
     await db
       .insert(faqs)

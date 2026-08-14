@@ -5,6 +5,7 @@ import { env } from "./config/env";
 import { auth } from "./config/auth";
 import { webhookRouter } from "./routes/webhook";
 import { apiRouter } from "./routes/api";
+import { processDueFollowUps } from "./services/followUpService";
 
 const app = express();
 
@@ -25,3 +26,7 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 app.listen(env.port, () => {
   console.log(`API listening on :${env.port}`);
 });
+
+setInterval(() => {
+  processDueFollowUps().catch((err) => console.error("follow-up scheduler error:", err));
+}, 60_000);

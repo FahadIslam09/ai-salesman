@@ -1,7 +1,8 @@
 // src/services/chatService.ts
 import { db } from "../db/db";
 import { conversations, messages, customers } from "../db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { and, asc, eq, desc, gt } from "drizzle-orm";
+import { generateReply } from "./aiService";
 
 export class ChatService {
   /**
@@ -127,5 +128,50 @@ export class ChatService {
     }
 
     return cleanHistory;
+  }
+
+  /**
+   * When a conversation grows past the sliding window, summarize the overflow
+   * into conversations.summary so context is kept without paying for every
+   * historical message on each AI call. Returns the combined summary or null.
+   */
+  static async maybeSummarize(conversationId: string): Promise<string | null> {
+    const [conversation] = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.id, conversationId))
+      .limit(1);
+    if (!conversation) return null;
+
+    let overflow;
+    if (conversation.summarizedUpto) {
+      overflow = await db
+        .select()
+        .from(messages)
+        .where(and(eq(messages.conversationId, conversationId), gt(messages.createdAt, conversation.summarizedUpto)))
+        .orderBy(asc(messages.createdAt))
+        .limit(100);
+    } else {
+      const all = await db
+        .select()
+        .from(messages)
+        .where(eq(messages.conversationId, conversationId))
+        .orderBy(asc(messages.createdAt));
+      if (all.length > 15) overflow = all.slice(0, all.length - 15);
+    }
+
+    if (!overflow || overflow.length === 0) return conversation.summary;
+
+    const excerpt = overflow.map((m) => `${m.role}: ${m.content}`).join("\n");
+    const res = await generateReply(
+      "Summarize this conversation excerpt in 2-3 short sentences. Output only the summary.",
+      [{ role: "user", content: excerpt }]
+    );
+    const combined = `${conversation.summary ? conversation.summary + " " : ""}${res.text.trim()}`;
+    await db
+      .update(conversations)
+      .set({ summary: combined, summarizedUpto: new Date(overflow[overflow.length - 1].createdAt) })
+      .where(eq(conversations.id, conversationId));
+    return combined;
   }
 }

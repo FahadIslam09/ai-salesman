@@ -1,3 +1,7 @@
+import { and, eq } from "drizzle-orm";
+import { db } from "../db/db";
+import { faqs, products } from "../db/schema";
+
 export interface PromptInput {
   botConfig: {
     tone?: string | null;
@@ -63,4 +67,24 @@ export function buildSystemPrompt(input: PromptInput): string {
   );
 
   return parts.join("\n\n");
+}
+
+export interface BotConfigLike {
+  enabled: boolean;
+  tone: string | null;
+  language: string | null;
+  businessInfo: string | null;
+  customInstructions: string | null;
+}
+
+export async function buildPagePrompt(pageId: string, botConfig: BotConfigLike): Promise<string> {
+  const productRows = await db
+    .select()
+    .from(products)
+    .where(and(eq(products.pageId, pageId), eq(products.isActive, true)));
+  const faqRows = await db
+    .select()
+    .from(faqs)
+    .where(and(eq(faqs.pageId, pageId), eq(faqs.isActive, true)));
+  return buildSystemPrompt({ botConfig, products: productRows, faqs: faqRows });
 }

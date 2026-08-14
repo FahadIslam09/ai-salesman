@@ -3,11 +3,12 @@ import { Router } from "express";
 import { and, eq } from "drizzle-orm";
 import { env } from "../config/env";
 import { db } from "../db/db";
-import { botConfigs, conversations, customers, faqs, knowledgeRequests, pages, products } from "../db/schema";
+import { botConfigs, conversations, customers, followUps, knowledgeRequests, pages } from "../db/schema";
 import { ChatService } from "../services/chatService";
 import { decryptToken } from "../services/tokenService";
 import { generateReply, generateReplyWithImages } from "../services/aiService";
-import { buildSystemPrompt } from "../utils/prompt";
+import { buildPagePrompt } from "../utils/prompt";
+import { detectAttention } from "../utils/flags";
 import { downloadAttachment, getUserProfile, replyToComment, sendMessage, sendPrivateReply } from "../services/facebookService";
 import { deductCredits, getBalance, logUsage } from "../services/creditService";
 import { MessageQueue, type QueueItem } from "../services/queueService";
@@ -40,22 +41,6 @@ async function getPageByFbId(fbPageId: string) {
 async function getBotConfig(pageId: string) {
   const [config] = await db.select().from(botConfigs).where(eq(botConfigs.pageId, pageId)).limit(1);
   return config ?? null;
-}
-
-async function buildPromptForPage(pageId: string, botConfig: { enabled: boolean; tone: string | null; language: string | null; businessInfo: string | null; customInstructions: string | null }) {
-  const productRows = await db
-    .select()
-    .from(products)
-    .where(and(eq(products.pageId, pageId), eq(products.isActive, true)));
-  const faqRows = await db
-    .select()
-    .from(faqs)
-    .where(and(eq(faqs.pageId, pageId), eq(faqs.isActive, true)));
-  return buildSystemPrompt({
-    botConfig,
-    products: productRows,
-    faqs: faqRows,
-  });
 }
 
 const KNOWLEDGE_REQUEST_RE = /\[KNOWLEDGE_REQUEST:\s*([^\]]+)\]/g;
@@ -143,9 +128,22 @@ async function handleMessagingEvents(entry: any) {
       .update(customers)
       .set({ lastActiveAt: new Date() })
       .where(eq(customers.id, customer.id));
+    await db
+      .update(followUps)
+      .set({ status: "replied" })
+      .where(and(eq(followUps.conversationId, conversation.id), eq(followUps.status, "sent")));
     emitPageEvent(page.id, "message", { conversationId: conversation.id });
 
     if (conversation.handledBy === "human") continue;
+
+    const flag = text ? detectAttention(text) : null;
+    if (flag) {
+      await db
+        .update(conversations)
+        .set({ attentionReason: flag })
+        .where(eq(conversations.id, conversation.id));
+      emitPageEvent(page.id, "attention", { conversationId: conversation.id, reason: flag });
+    }
 
     const botConfig = await getBotConfig(page.id);
     if (!botConfig?.enabled) continue;
@@ -168,7 +166,9 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
     return;
   }
 
-  const systemPrompt = await buildPromptForPage(page.id, botConfig);
+  const summary = await ChatService.maybeSummarize(conversation.id);
+  const basePrompt = await buildPagePrompt(page.id, botConfig);
+  const systemPrompt = summary ? `${basePrompt}\n\nConversation summary so far:\n${summary}` : basePrompt;
   const history = await ChatService.getRecentChatHistory(conversation.id);
   const text = items.map((i) => i.text).filter(Boolean).join("\n");
   const imageUrls = items.flatMap((i) => i.attachments ?? []);
@@ -258,7 +258,7 @@ async function handleFeedEvents(entry: any) {
     const balance = await getBalance(page.userId);
     if (balance.credits <= 0) continue;
 
-    const systemPrompt = await buildPromptForPage(page.id, botConfig);
+    const systemPrompt = await buildPagePrompt(page.id, botConfig);
     const commentPrompt = `${systemPrompt}\n\nA customer commented on a Facebook post: "${message}". Decide: if they are asking about a product or price, you must reply to the comment with a short "Check Inbox 📩" style note AND write a detailed private message with product info/price to send to their inbox. Respond ONLY with JSON: {"commentReply": "<text>", "privateMessage": "<text or empty>"}`;
 
     const reply = await generateReply(commentPrompt, []);

@@ -1,19 +1,44 @@
 // src/services/chatService.ts
 import { db } from "../db/db";
-import { conversations, messages } from "../db/schema";
+import { conversations, messages, customers } from "../db/schema";
 import { eq, and, desc } from "drizzle-orm";
 
 export class ChatService {
+  /**
+   * Gets or creates a customer using the composite unique (pageId + psid).
+   * onConflictDoNothing handles the race where two webhook events create
+   * the same customer simultaneously.
+   */
+  static async getOrCreateCustomer(pageId: string, psid: string) {
+    const existing = await db
+      .select()
+      .from(customers)
+      .where(and(eq(customers.pageId, pageId), eq(customers.psid, psid)))
+      .limit(1);
+
+    if (existing.length > 0) {
+      return existing[0];
+    }
+
+    await db.insert(customers).values({ pageId, psid }).onConflictDoNothing();
+
+    const [inserted] = await db
+      .select()
+      .from(customers)
+      .where(and(eq(customers.pageId, pageId), eq(customers.psid, psid)))
+      .limit(1);
+
+    return inserted;
+  }
 
   /**
-   * Gets or creates a conversation using the composite unique (pageId + psid).
-   * In this schema, conversations track the customer identity directly via psid.
+   * Gets or creates a conversation for a customer (one active conversation per customer).
    */
-  static async getOrCreateConversation(pageId: string, psid: string) {
+  static async getOrCreateConversation(pageId: string, customerId: string) {
     const existing = await db
       .select()
       .from(conversations)
-      .where(and(eq(conversations.pageId, pageId), eq(conversations.psid, psid)))
+      .where(and(eq(conversations.pageId, pageId), eq(conversations.customerId, customerId)))
       .limit(1);
 
     if (existing.length > 0) {
@@ -24,19 +49,35 @@ export class ChatService {
       .insert(conversations)
       .values({
         pageId,
-        psid,
-        status: "bot",
+        customerId,
+        status: "new",
+        handledBy: "bot",
         lastMessageAt: new Date(),
       })
+      .onConflictDoNothing()
       .returning();
 
-    return inserted;
+    if (inserted) {
+      return inserted;
+    }
+
+    const [reSelected] = await db
+      .select()
+      .from(conversations)
+      .where(and(eq(conversations.pageId, pageId), eq(conversations.customerId, customerId)))
+      .limit(1);
+
+    return reSelected;
   }
 
   /**
-   * Saves a message (user or model) to the messages table.
+   * Saves a message (user, model or human) to the messages table.
    */
-  static async logMessage(conversationId: string, role: "user" | "model", content: string) {
+  static async logMessage(
+    conversationId: string,
+    role: "user" | "model" | "human",
+    content: string
+  ) {
     await db.insert(messages).values({
       conversationId,
       role,

@@ -12,7 +12,7 @@ import {
 import { relations } from "drizzle-orm";
 
 // -------------------------------------------------------------
-// Better Auth Core Table
+// Better Auth Core Tables
 // -------------------------------------------------------------
 export const users = pgTable("user", {
   id: text("id").primaryKey(),
@@ -22,6 +22,46 @@ export const users = pgTable("user", {
   image: text("image"),
   createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
+});
+
+export const sessions = pgTable("session", {
+  id: text("id").primaryKey(),
+  expiresAt: timestamp("expiresAt", { withTimezone: true }).notNull(),
+  token: text("token").notNull().unique(),
+  createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
+  ipAddress: text("ipAddress"),
+  userAgent: text("userAgent"),
+  userId: text("userId")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+});
+
+export const accounts = pgTable("account", {
+  id: text("id").primaryKey(),
+  accountId: text("accountId").notNull(),
+  providerId: text("providerId").notNull(),
+  userId: text("userId")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  accessToken: text("accessToken"),
+  refreshToken: text("refreshToken"),
+  idToken: text("idToken"),
+  accessTokenExpiresAt: timestamp("accessTokenExpiresAt", { withTimezone: true }),
+  refreshTokenExpiresAt: timestamp("refreshTokenExpiresAt", { withTimezone: true }),
+  scope: text("scope"),
+  password: text("password"),
+  createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
+});
+
+export const verifications = pgTable("verification", {
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: timestamp("expiresAt", { withTimezone: true }).notNull(),
+  createdAt: timestamp("createdAt", { withTimezone: true }),
+  updatedAt: timestamp("updatedAt", { withTimezone: true }),
 });
 
 // -------------------------------------------------------------
@@ -70,16 +110,21 @@ export const faqs = pgTable(
   })
 );
 
-// 🆕 NEW: Products table for AI Image/Catalog Search
 export const products = pgTable(
   "products",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    pageId: uuid("page_id").notNull().references(() => pages.id, { onDelete: "cascade" }), // Which page owns this product
-    name: text("name").notNull(), // e.g., "Black Formal Shirt"
-    keywords: text("keywords").notNull(), // e.g., "black, kalo, shirt, formal" (Helps AI search)
-    imageUrl: text("image_url").notNull(), // Link to the image
-    price: integer("price"), 
+    pageId: uuid("page_id").notNull().references(() => pages.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    keywords: text("keywords").notNull(),
+    imageUrl: text("image_url").notNull(),
+    price: integer("price"),
+    description: text("description"),
+    discount: integer("discount"),
+    stockStatus: text("stock_status").default("available").notNull(), // available, low_stock, out_of_stock, hidden
+    category: text("category"),
+    variants: jsonb("variants").$type<string[]>(),
+    deliveryInfo: text("delivery_info"),
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -88,19 +133,41 @@ export const products = pgTable(
   })
 );
 
+export const customers = pgTable(
+  "customers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    pageId: uuid("page_id").notNull().references(() => pages.id, { onDelete: "cascade" }),
+    psid: text("psid").notNull(),
+    name: text("name"),
+    profilePicUrl: text("profile_pic_url"),
+    tags: jsonb("tags").$type<string[]>().default([]),
+    notes: text("notes"),
+    status: text("status").default("new").notNull(), // new, interested, negotiating, purchased, not_interested
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).defaultNow().notNull(),
+    lastActiveAt: timestamp("last_active_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    pageIdPsidUnique: unique("customers_page_id_psid_unique").on(table.pageId, table.psid),
+    pageIdIdx: index("customers_page_id_idx").on(table.pageId),
+  })
+);
+
 export const conversations = pgTable(
   "conversations",
   {
     id: uuid("id").defaultRandom().primaryKey(),
     pageId: uuid("page_id").notNull().references(() => pages.id, { onDelete: "cascade" }),
-    psid: text("psid").notNull(),
+    customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
     summary: text("summary"),
     summarizedUpto: timestamp("summarized_upto", { withTimezone: true }),
-    status: text("status").default("bot").notNull(),
+    status: text("status").default("new").notNull(), // new, interested, negotiating, follow_up, purchased, not_interested, closed
+    handledBy: text("handled_by").default("bot").notNull(), // bot, human
+    attentionReason: text("attention_reason"), // knowledge_request, human_requested, angry, purchase_ready, high_value, follow_up_pending, ai_error
     lastMessageAt: timestamp("last_message_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
-    pageIdPsidUnique: unique("conversations_page_id_psid_unique").on(table.pageId, table.psid),
+    pageIdCustomerUnique: unique("conversations_page_id_customer_id_unique").on(table.pageId, table.customerId),
     pageIdLastMessageIdx: index("conversations_page_id_last_message_idx").on(table.pageId, table.lastMessageAt),
   })
 );
@@ -110,9 +177,9 @@ export const messages = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     conversationId: uuid("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
-    role: text("role").notNull(), 
+    role: text("role").notNull(), // user, model, human
     content: text("content").notNull(),
-    fbMessageId: text("fb_message_id"), 
+    fbMessageId: text("fb_message_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
@@ -120,30 +187,65 @@ export const messages = pgTable(
   })
 );
 
+export const knowledgeRequests = pgTable("knowledge_requests", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  pageId: uuid("page_id").notNull().references(() => pages.id, { onDelete: "cascade" }),
+  conversationId: uuid("conversation_id").references(() => conversations.id),
+  question: text("question").notNull(),
+  answer: text("answer"),
+  status: text("status").default("pending").notNull(), // pending, answered, dismissed
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  answeredAt: timestamp("answered_at", { withTimezone: true }),
+});
+
+export const followUps = pgTable("follow_ups", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  pageId: uuid("page_id").notNull().references(() => pages.id, { onDelete: "cascade" }),
+  customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  conversationId: uuid("conversation_id").references(() => conversations.id),
+  reason: text("reason"),
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
+  status: text("status").default("scheduled").notNull(), // scheduled, sent, replied, completed, cancelled
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const sales = pgTable("sales", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  pageId: uuid("page_id").notNull().references(() => pages.id, { onDelete: "cascade" }),
+  customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  conversationId: uuid("conversation_id").references(() => conversations.id),
+  productId: uuid("product_id").references(() => products.id),
+  quantity: integer("quantity").default(1),
+  amount: integer("amount").notNull(), // BDT
+  source: text("source").default("inbox").notNull(), // inbox, comment, follow_up, direct, other
+  aiAssisted: boolean("ai_assisted").default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 // -------------------------------------------------------------
 // Billing & Quota Tables
 // -------------------------------------------------------------
 export const payments = pgTable("payments", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  provider: text("provider").notNull(),
+  provider: text("provider").notNull(), // bkash, manual
   providerTxnId: text("provider_txn_id").notNull().unique(),
   providerPaymentId: text("provider_payment_id"),
-  plan: text("plan").notNull(),
+  package: text("package").notNull(), // starter, basic, business, pro, enterprise
+  creditsGranted: integer("credits_granted").notNull(),
   amount: integer("amount").notNull(),
   currency: text("currency").default("BDT").notNull(),
-  status: text("status").default("pending").notNull(),
+  status: text("status").default("pending").notNull(), // pending, paid, failed, refunded
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const subscriptions = pgTable("subscriptions", {
+export const creditBalances = pgTable("credit_balances", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: text("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
-  plan: text("plan").notNull(),
-  status: text("status").notNull(),
-  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  lastPaymentId: uuid("last_payment_id").references(() => payments.id, { onDelete: "set null" }),
+  credits: integer("credits").default(0).notNull(),
+  totalPurchased: integer("total_purchased").default(0).notNull(),
+  totalUsed: integer("total_used").default(0).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const usageLogs = pgTable(
@@ -152,9 +254,12 @@ export const usageLogs = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     pageId: uuid("page_id").notNull().references(() => pages.id, { onDelete: "cascade" }),
-    kind: text("kind").notNull(), 
+    conversationId: uuid("conversation_id").references(() => conversations.id),
+    kind: text("kind").notNull(), // inbox_reply, comment_reply, follow_up
     tokensIn: integer("tokens_in"),
     tokensOut: integer("tokens_out"),
+    creditsDeducted: integer("credits_deducted"),
+    apiCostPaisa: integer("api_cost_paisa"), // actual API cost in paisa (1 BDT = 100 paisa)
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
@@ -163,25 +268,42 @@ export const usageLogs = pgTable(
 );
 
 // -------------------------------------------------------------
-// Drizzle Relations 
+// Drizzle Relations
 // -------------------------------------------------------------
 export const usersRelations = relations(users, ({ many, one }) => ({
+  sessions: many(sessions),
+  accounts: many(accounts),
   pages: many(pages),
   payments: many(payments),
   usageLogs: many(usageLogs),
-  subscription: one(subscriptions),
+  creditBalance: one(creditBalances),
 }));
 
 export const pagesRelations = relations(pages, ({ one, many }) => ({
   user: one(users, { fields: [pages.userId], references: [users.id] }),
   botConfig: one(botConfigs),
   faqs: many(faqs),
-  products: many(products), // 🆕 Relation added
+  products: many(products),
+  customers: many(customers),
   conversations: many(conversations),
+  knowledgeRequests: many(knowledgeRequests),
+  followUps: many(followUps),
+  sales: many(sales),
   usageLogs: many(usageLogs),
+}));
+
+export const customersRelations = relations(customers, ({ one, many }) => ({
+  page: one(pages, { fields: [customers.pageId], references: [pages.id] }),
+  conversations: many(conversations),
+  followUps: many(followUps),
+  sales: many(sales),
 }));
 
 export const conversationsRelations = relations(conversations, ({ one, many }) => ({
   page: one(pages, { fields: [conversations.pageId], references: [pages.id] }),
+  customer: one(customers, { fields: [conversations.customerId], references: [customers.id] }),
   messages: many(messages),
+  knowledgeRequests: many(knowledgeRequests),
+  followUps: many(followUps),
+  sales: many(sales),
 }));

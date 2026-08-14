@@ -217,7 +217,6 @@ src/
 │   ├── creditService.ts         # Credit balance, deduction, low-credit checks
 │   ├── tokenService.ts          # Encrypt/decrypt page access tokens
 │   ├── facebookService.ts       # Send messages, comments, private replies via Graph API
-│   ├── knowledgeService.ts      # Build dynamic system prompt from botConfig + faqs + products
 │   └── queueService.ts         # Message debounce/buffer (3.5s mutex)
 ├── routes/
 │   ├── webhook.ts               # Facebook webhook GET (verify) + POST (receive)
@@ -376,7 +375,7 @@ Uses Graph API v19.0 (or latest stable).
    c. Check conversation.status — if "human", skip AI
    d. Feed message into queueService buffer
    e. After 3.5s debounce:
-      - Build system prompt (knowledgeService)
+      - Build system prompt (utils/prompt.ts)
       - Get chat history (chatService)
       - Call AI (aiService)
       - Parse response for knowledge requests
@@ -705,7 +704,7 @@ graph TD
 | 1 | Schema updates + migration | — | 1 day |
 | 2 | tokenService, env config | Schema | 0.5 day |
 | 3 | chatService (updated), aiService | Schema | 1 day |
-| 4 | queueService, knowledgeService/prompt builder | chatService, aiService | 1 day |
+| 4 | queueService, prompt builder | chatService, aiService | 1 day |
 | 5 | creditService | Schema | 0.5 day |
 | 6 | facebookService | — | 0.5 day |
 | 7 | Webhook route (messages) | All services | 1 day |

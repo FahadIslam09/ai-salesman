@@ -110,7 +110,7 @@ export class ChatService {
     }));
 
     // Merge consecutive same-role messages
-    const cleanHistory: { role: string; content: string }[] = [];
+    const cleanHistory: { role: "user" | "model"; content: string }[] = [];
 
     for (const msg of rawHistory) {
       const last = cleanHistory[cleanHistory.length - 1];

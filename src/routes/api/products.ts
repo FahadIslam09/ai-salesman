@@ -1,0 +1,80 @@
+import { Router } from "express";
+import { and, desc, eq } from "drizzle-orm";
+import { db } from "../../db/db";
+import { products } from "../../db/schema";
+import { requireAuth } from "../middleware/auth";
+import { assertPageOwnedByUser } from "../middleware/pageAccess";
+
+export const productsRouter = Router();
+productsRouter.use(requireAuth);
+
+productsRouter.get("/", async (req, res) => {
+  const pageId = req.query.pageId as string;
+  if (!pageId || !(await assertPageOwnedByUser(pageId, (req as any).session.user.id))) {
+    res.status(403).json({ error: "forbidden" });
+    return;
+  }
+  const rows = await db
+    .select()
+    .from(products)
+    .where(and(eq(products.pageId, pageId), eq(products.isActive, true)))
+    .orderBy(desc(products.createdAt));
+  res.json(rows);
+});
+
+productsRouter.post("/", async (req, res) => {
+  const { pageId, name, keywords, imageUrl, price, description, discount, stockStatus, category, variants, deliveryInfo } = req.body;
+  if (!pageId || !name || !keywords || !imageUrl) {
+    res.status(400).json({ error: "pageId, name, keywords, imageUrl required" });
+    return;
+  }
+  if (!(await assertPageOwnedByUser(pageId, (req as any).session.user.id))) {
+    res.status(403).json({ error: "forbidden" });
+    return;
+  }
+  const [row] = await db
+    .insert(products)
+    .values({
+      pageId,
+      name,
+      keywords,
+      imageUrl,
+      price,
+      description,
+      discount,
+      stockStatus: stockStatus ?? "available",
+      category,
+      variants,
+      deliveryInfo,
+    })
+    .returning();
+  res.status(201).json(row);
+});
+
+productsRouter.patch("/:id", async (req, res) => {
+  const [product] = await db.select().from(products).where(eq(products.id, req.params.id)).limit(1);
+  if (!product || !(await assertPageOwnedByUser(product.pageId, (req as any).session.user.id))) {
+    res.status(404).json({ error: "not found" });
+    return;
+  }
+  const allowed = [
+    "name", "keywords", "imageUrl", "price", "description", "discount",
+    "stockStatus", "category", "variants", "deliveryInfo",
+  ] as const;
+  const set: Record<string, unknown> = {};
+  for (const key of allowed) {
+    if (req.body[key] !== undefined) set[key] = req.body[key];
+  }
+  const [updated] = await db.update(products).set(set).where(eq(products.id, product.id)).returning();
+  res.json(updated);
+});
+
+productsRouter.delete("/:id", async (req, res) => {
+  const [product] = await db.select().from(products).where(eq(products.id, req.params.id)).limit(1);
+  if (!product || !(await assertPageOwnedByUser(product.pageId, (req as any).session.user.id))) {
+    res.status(404).json({ error: "not found" });
+    return;
+  }
+  await db.update(products).set({ isActive: false }).where(eq(products.id, product.id));
+  res.json({ ok: true });
+});

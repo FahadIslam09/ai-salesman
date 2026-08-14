@@ -1,0 +1,28 @@
+import { Router } from "express";
+import { conversationsRouter } from "./conversations";
+import { customersRouter } from "./customers";
+import { productsRouter } from "./products";
+import { knowledgeRouter } from "./knowledge";
+import { creditsRouter } from "./credits";
+import { settingsRouter } from "./settings";
+import { analyticsRouter } from "./analytics";
+import { salesRouter } from "./sales";
+import { followUpsRouter } from "./followUps";
+import { overviewRouter } from "./overview";
+import { pagesRouter } from "./pages";
+import { eventsRouter } from "./events";
+
+export const apiRouter = Router();
+
+apiRouter.use("/conversations", conversationsRouter);
+apiRouter.use("/customers", customersRouter);
+apiRouter.use("/products", productsRouter);
+apiRouter.use("/knowledge", knowledgeRouter);
+apiRouter.use("/credits", creditsRouter);
+apiRouter.use("/settings", settingsRouter);
+apiRouter.use("/analytics", analyticsRouter);
+apiRouter.use("/sales", salesRouter);
+apiRouter.use("/follow-ups", followUpsRouter);
+apiRouter.use("/overview", overviewRouter);
+apiRouter.use("/pages", pagesRouter);
+apiRouter.use("/events", eventsRouter);

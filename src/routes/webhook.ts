@@ -311,7 +311,26 @@ async function handleFeedEvents(entry: any) {
     if (balance.credits <= 0) continue;
 
     const systemPrompt = await buildPagePrompt(page.id, botConfig, { storeName: page.name });
-    const commentPrompt = `${systemPrompt}\n\nA customer commented on a Facebook post: "${message}". Decide: if they are asking about a product or price, you must reply to the comment with a short "Check Inbox 📩" style note AND write a detailed private message with product info/price to send to their inbox. Respond ONLY with JSON: {"commentReply": "<text>", "privateMessage": "<text or empty>"}`;
+    const commentPrompt = `${systemPrompt}
+
+## COMMENT REPLY TASK
+A customer commented on a Facebook post: "${message}"
+
+Classify this comment and respond accordingly:
+
+**PRICE/ORDER questions** (দাম কত, price, কত টাকা, অর্ডার, কিভাবে কিনবো, buy):
+- commentReply: Short reply telling them to check their inbox, like "Inbox চেক করুন 📩" or "ডিটেইলস inbox এ দিয়েছি 📩". Keep it 1 line. The private message has ALREADY been sent, so tell them to CHECK inbox, not to SEND you a message. Never reveal the price publicly.
+- privateMessage: Full detailed response with product name, price, variants, delivery info, and a call-to-action to confirm the order.
+
+**GENERAL questions** (সাইজ, color, রং, delivery, ডেলিভারি, কোথায় পাওয়া যায়, stock):
+- commentReply: Answer the question directly and helpfully in 1-2 lines. Add a soft sales hook.
+- privateMessage: "" (empty — no private message needed)
+
+**IRRELEVANT/SPAM** (random, off-topic, just emojis, greetings like "nice", "wow"):
+- commentReply: Short friendly acknowledgment like "ধন্যবাদ! 😊 কিছু জানতে চাইলে জানাবেন" (1 line)
+- privateMessage: "" (empty)
+
+Respond ONLY with valid JSON: {"commentReply": "<text>", "privateMessage": "<text or empty>"}`;
 
     const reply = await generateReply(commentPrompt, []);
     let commentReply = "";
@@ -327,14 +346,15 @@ async function handleFeedEvents(entry: any) {
     const token = decryptToken(page.encryptedAccessToken, page.tokenIv);
     if (commentReply) {
       try {
-        await replyToComment(token, commentId, commentReply);
+        // Send private message FIRST so price is in inbox before "check inbox" comment appears
         if (privateMessage) {
           try {
             await sendPrivateReply(token, commentId, privateMessage);
           } catch (err) {
-            console.error("private reply failed (public reply already sent):", err);
+            console.error("private reply failed:", err);
           }
         }
+        await replyToComment(token, commentId, commentReply);
         await logUsage({
           userId: page.userId,
           pageId: page.id,

@@ -21,8 +21,8 @@ export async function replyToComment(pageAccessToken: string, commentId: string,
 
 export async function sendPrivateReply(pageAccessToken: string, commentId: string, text: string): Promise<void> {
   await axios.post(
-    `${GRAPH}/${commentId}/private_replies`,
-    { message: text },
+    `${GRAPH}/me/messages`,
+    { recipient: { comment_id: commentId }, message: { text } },
     { params: { access_token: pageAccessToken } }
   );
 }

@@ -298,6 +298,13 @@ async function handleFeedEvents(entry: any) {
       console.log("[feed] no page found for postId:", postId);
       continue;
     }
+
+    // Ignore comments written by the Page itself to prevent infinite loops
+    if (value?.from?.id === page.fbPageId) {
+      console.log("[feed] ignoring page's own comment:", commentId);
+      continue;
+    }
+
     const botConfig = await getBotConfig(page.id);
     if (!botConfig?.enabled) continue;
     const balance = await getBalance(page.userId);

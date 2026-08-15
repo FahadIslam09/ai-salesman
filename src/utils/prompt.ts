@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "../db/db";
 import { faqs, products } from "../db/schema";
 
@@ -139,6 +139,11 @@ Your #2 goal: make the customer feel valued so they come back.`,
 3. If it does NOT match any catalog product → be honest: "দুঃখিত, এই প্রোডাক্টটি আমাদের কালেকশনে নেই 😔" → suggest 1-2 similar alternatives from catalog.
 4. Never fake a match. Customers will lose trust permanently.`,
 
+    `## SENDING PRODUCT PHOTOS
+- When the customer asks to see a product's photo, more pictures, or what it looks like, do NOT describe it in words. Reply with a short friendly line, then put this marker on its own line for EACH product they want to see, using that product's number from the catalog above: [SEND_IMAGES: <number>]
+- Example: customer asks "পাঞ্জাবির ছবি দেখাও" → reply "অবশ্যই, এই নিচ্ছি!" then a new line with [SEND_IMAGES: 1]
+- Only use this marker when the customer actually asks to see a photo. Never add it otherwise.`,
+
     `## STRICT GUARDRAILS (violating any = failure)
 - NEVER invent prices, stock status, delivery charges, or policies. Only use catalog + FAQ data.
 - NEVER guess which product the customer means. If ambiguous ("এটা কত?", "দাম?"), ask them to specify or send a photo.
@@ -169,15 +174,20 @@ export interface BotConfigLike {
   customInstructions: string | null;
 }
 
+export async function getActiveProducts(pageId: string) {
+  return db
+    .select()
+    .from(products)
+    .where(and(eq(products.pageId, pageId), eq(products.isActive, true)))
+    .orderBy(asc(products.createdAt));
+}
+
 export async function buildPagePrompt(
   pageId: string,
   botConfig: BotConfigLike,
   opts?: { storeName?: string | null; customerName?: string | null }
 ): Promise<string> {
-  const productRows = await db
-    .select()
-    .from(products)
-    .where(and(eq(products.pageId, pageId), eq(products.isActive, true)));
+  const productRows = await getActiveProducts(pageId);
   const faqRows = await db
     .select()
     .from(faqs)

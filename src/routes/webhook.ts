@@ -8,9 +8,9 @@ import { botConfigs, conversations, customers, followUps, knowledgeRequests, pag
 import { ChatService } from "../services/chatService";
 import { decryptToken } from "../services/tokenService";
 import { generateReply, generateReplyWithImages } from "../services/aiService";
-import { buildPagePrompt } from "../utils/prompt";
+import { buildPagePrompt, getActiveProducts } from "../utils/prompt";
 import { detectAttention } from "../utils/flags";
-import { downloadAttachment, getUserProfile, replyToComment, sendMessage, sendPrivateReply } from "../services/facebookService";
+import { downloadAttachment, getPost, getUserProfile, replyToComment, sendImage, sendMessage, sendPrivateReply } from "../services/facebookService";
 import { deductCredits, getBalance, logUsage } from "../services/creditService";
 import { MessageQueue, type QueueItem } from "../services/queueService";
 import { emitPageEvent } from "../utils/events";
@@ -66,6 +66,23 @@ function extractKnowledgeRequests(text: string): string[] {
 
 function stripKnowledgeMarkers(text: string): string {
   return text.replace(KNOWLEDGE_REQUEST_RE, "").trim();
+}
+
+const SEND_IMAGES_RE = /\[SEND_IMAGES:\s*([^\]]+)\]/g;
+
+function extractImageRequests(text: string): number[] {
+  const nums: number[] = [];
+  for (const match of text.matchAll(SEND_IMAGES_RE)) {
+    for (const part of match[1].split(/[,\s]+/)) {
+      const idx = parseInt(part, 10);
+      if (!Number.isNaN(idx)) nums.push(idx);
+    }
+  }
+  return nums;
+}
+
+function stripImageMarkers(text: string): string {
+  return text.replace(SEND_IMAGES_RE, "").trim();
 }
 
 async function handleWebhook(body: any) {
@@ -230,7 +247,8 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
   }
 
   const knowledgeQuestions = extractKnowledgeRequests(reply.text);
-  const cleanText = stripKnowledgeMarkers(reply.text);
+  const imageRequests = extractImageRequests(reply.text);
+  const cleanText = stripImageMarkers(stripKnowledgeMarkers(reply.text));
 
   if (knowledgeQuestions.length > 0) {
     await db.insert(knowledgeRequests).values(
@@ -248,13 +266,27 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
   }
 
   let deducted = false;
-  if (cleanText) {
+  if (cleanText || imageRequests.length > 0) {
     deducted = await deductCredits(page.userId, 1);
     if (deducted) {
       try {
         const token = decryptToken(page.encryptedAccessToken, page.tokenIv);
-        await sendMessage(token, customer.psid, cleanText);
-        await ChatService.logMessage(conversation.id, "model", cleanText);
+        if (cleanText) {
+          await sendMessage(token, customer.psid, cleanText);
+          await ChatService.logMessage(conversation.id, "model", cleanText);
+        }
+        if (imageRequests.length > 0) {
+          const productRows = await getActiveProducts(page.id);
+          for (const n of imageRequests) {
+            const product = productRows[n - 1];
+            if (!product) continue;
+            const urls = product.images?.length ? product.images : [product.imageUrl];
+            for (const url of urls) {
+              await sendImage(token, customer.psid, url);
+              await ChatService.logMessage(conversation.id, "model", `[Image sent: ${url}]`);
+            }
+          }
+        }
         emitPageEvent(page.id, "message", { conversationId: conversation.id });
       } catch (err) {
         console.error("failed to send AI reply:", err);
@@ -291,6 +323,7 @@ async function handleFeedEvents(entry: any) {
     const commentId: string | undefined = value?.comment_id;
     const postId: string | undefined = value?.post_id;
     const message: string | undefined = value?.message;
+    const commenterId: string | undefined = value?.from?.id;
     if (!commentId || !postId || !message) continue;
 
     const page = await getPageByFbId(postId.split("_")[0]);
@@ -310,40 +343,60 @@ async function handleFeedEvents(entry: any) {
     const balance = await getBalance(page.userId);
     if (balance.credits <= 0) continue;
 
-    const systemPrompt = await buildPagePrompt(page.id, botConfig, { storeName: page.name });
-    const commentPrompt = `${systemPrompt}
+    const token = decryptToken(page.encryptedAccessToken, page.tokenIv);
 
-## COMMENT REPLY TASK
-A customer commented on a Facebook post: "${message}"
-
-Classify this comment and respond accordingly:
-
-**PRICE/ORDER questions** (দাম কত, price, কত টাকা, অর্ডার, কিভাবে কিনবো, buy):
-- commentReply: Short reply telling them to check their inbox, like "Inbox চেক করুন 📩" or "ডিটেইলস inbox এ দিয়েছি 📩". Keep it 1 line. The private message has ALREADY been sent, so tell them to CHECK inbox, not to SEND you a message. Never reveal the price publicly.
-- privateMessage: Full detailed response with product name, price, variants, delivery info, and a call-to-action to confirm the order.
-
-**GENERAL questions** (সাইজ, color, রং, delivery, ডেলিভারি, কোথায় পাওয়া যায়, stock):
-- commentReply: Answer the question directly and helpfully in 1-2 lines. Add a soft sales hook.
-- privateMessage: "" (empty — no private message needed)
-
-**IRRELEVANT/SPAM** (random, off-topic, just emojis, greetings like "nice", "wow"):
-- commentReply: Short friendly acknowledgment like "ধন্যবাদ! 😊 কিছু জানতে চাইলে জানাবেন" (1 line)
-- privateMessage: "" (empty)
-
-Respond ONLY with valid JSON: {"commentReply": "<text>", "privateMessage": "<text or empty>"}`;
-
-    const reply = await generateReply(commentPrompt, []);
-    let commentReply = "";
-    let privateMessage = "";
+    // Pull the post's image + caption so the AI can identify the product even
+    // when the customer's comment is just "Price?".
+    let caption = "";
+    let postImage: { base64: string; mime: string } | null = null;
     try {
-      const parsed = JSON.parse(reply.text.replace(/```json|```/g, ""));
-      commentReply = parsed.commentReply ?? "";
-      privateMessage = parsed.privateMessage ?? "";
-    } catch {
-      commentReply = reply.text;
+      const post = await getPost(token, postId);
+      caption = post.message ?? "";
+      if (post.fullPicture) {
+        const dl = await downloadAttachment(post.fullPicture);
+        postImage = { base64: dl.data.toString("base64"), mime: dl.contentType };
+      }
+    } catch (err) {
+      console.error("failed to fetch post context:", err);
+    }
+    console.log("[feed] post context:", JSON.stringify({ caption, hasImage: !!postImage, commenterId }));
+
+    const systemPrompt = await buildPagePrompt(page.id, botConfig, { storeName: page.name });
+
+    // Step 1: identify the product and write the private message (or NONE).
+    const privatePrompt = `${systemPrompt}
+
+## PRIVATE REPLY TASK
+A customer commented on one of your Facebook posts: "${message}"
+${caption ? `Post caption: "${caption}"` : "The post has no caption."} ${postImage ? "Analyze the post image to identify which catalog product it shows." : ""}
+
+- If the comment is a price, order, or product-info question: identify the product from the post and write the private message to send to their inbox. Include the exact product name and price from the catalog, one key benefit, variants if any, delivery info, and a call to action to confirm the order. Output ONLY the message text — no intro, no quotes.
+- If the comment is general or irrelevant (a non-product question, greeting, spam, emoji, off-topic): output ONLY the word NONE.`;
+
+    const privateReply = postImage
+      ? await generateReplyWithImages(privatePrompt, [postImage], message, [])
+      : await generateReply(privatePrompt, [{ role: "user", content: message }]);
+
+    const privateMessage = /^NONE\.?$/i.test(privateReply.text.trim()) ? "" : privateReply.text.trim();
+    let tokensIn = privateReply.tokensIn;
+    let tokensOut = privateReply.tokensOut;
+
+    // Step 2: public comment reply. Deterministic for price questions, AI-written otherwise.
+    let commentReply = "";
+    if (privateMessage) {
+      commentReply = "Inbox চেক করুন 📩";
+    } else {
+      const publicPrompt = `${systemPrompt}\n\nA customer commented on your Facebook post: "${message}".${caption ? ` Post caption: "${caption}".` : ""} Write a short, friendly public reply (1-2 lines) to this comment. If it's spam or just an emoji, a brief "ধন্যবাদ! 😊" acknowledgment is fine. Output ONLY the reply text, nothing else.`;
+      const publicReply = postImage
+        ? await generateReplyWithImages(publicPrompt, [postImage], message, [])
+        : await generateReply(publicPrompt, [{ role: "user", content: message }]);
+      commentReply = publicReply.text.trim();
+      tokensIn += publicReply.tokensIn;
+      tokensOut += publicReply.tokensOut;
     }
 
-    const token = decryptToken(page.encryptedAccessToken, page.tokenIv);
+    console.log("[feed] AI reply:", JSON.stringify({ privateMessage, commentReply }));
+
     if (commentReply) {
       try {
         // Send private message FIRST so price is in inbox before "check inbox" comment appears
@@ -351,16 +404,21 @@ Respond ONLY with valid JSON: {"commentReply": "<text>", "privateMessage": "<tex
           try {
             await sendPrivateReply(token, commentId, privateMessage);
           } catch (err) {
-            console.error("private reply failed:", err);
+            console.error("private reply (comment_id) failed, falling back to PSID:", err);
+            if (commenterId) {
+              await sendMessage(token, commenterId, privateMessage);
+            }
           }
+        } else {
+          console.log("[feed] privateMessage empty — nothing sent to inbox");
         }
         await replyToComment(token, commentId, commentReply);
         await logUsage({
           userId: page.userId,
           pageId: page.id,
           kind: "comment_reply",
-          tokensIn: reply.tokensIn,
-          tokensOut: reply.tokensOut,
+          tokensIn,
+          tokensOut,
           creditsDeducted: 0,
         });
         await deductCredits(page.userId, 1);

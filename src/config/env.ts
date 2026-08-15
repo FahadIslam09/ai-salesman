@@ -17,6 +17,7 @@ export const env = {
   dashboardUrl: process.env.DASHBOARD_URL ?? "http://localhost:3001",
   graphApiVersion: process.env.GRAPH_API_VERSION ?? "v23.0",
   appSecret: process.env.APP_SECRET ?? "",
+  imgbbApiKey: process.env.IMGBB_API_KEY ?? "",
   bkash: {
     baseUrl: process.env.BKASH_BASE_URL ?? "",
     username: process.env.BKASH_USERNAME ?? "",

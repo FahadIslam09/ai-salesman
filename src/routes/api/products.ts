@@ -1,12 +1,29 @@
-import { Router } from "express";
+import express, { Router } from "express";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "../../db/db";
 import { products } from "../../db/schema";
 import { requireAuth } from "../middleware/auth";
 import { assertPageOwnedByUser } from "../middleware/pageAccess";
+import { uploadImage } from "../../services/imgbbService";
 
 export const productsRouter = Router();
 productsRouter.use(requireAuth);
+
+// Accepts the image as a raw text/plain base64 (or data URL) body so it
+// bypasses the global JSON 1mb limit without touching other endpoints.
+productsRouter.post("/upload", express.text({ type: "text/plain", limit: "10mb" }), async (req, res) => {
+  try {
+    const image = req.body;
+    if (!image || typeof image !== "string") {
+      res.status(400).json({ error: "image required" });
+      return;
+    }
+    const url = await uploadImage(image);
+    res.json({ url });
+  } catch (err: any) {
+    res.status(502).json({ error: `Upload failed: ${err.message}` });
+  }
+});
 
 productsRouter.get("/", async (req, res) => {
   const pageId = req.query.pageId as string;
@@ -23,9 +40,16 @@ productsRouter.get("/", async (req, res) => {
 });
 
 productsRouter.post("/", async (req, res) => {
-  const { pageId, name, keywords, imageUrl, price, description, discount, stockStatus, category, variants, deliveryInfo } = req.body;
-  if (!pageId || !name || !keywords || !imageUrl) {
-    res.status(400).json({ error: "pageId, name, keywords, imageUrl required" });
+  const { pageId, name, keywords, imageUrl, images, price, description, discount, stockStatus, category, variants, deliveryInfo } = req.body;
+  if (!pageId || !name || !keywords) {
+    res.status(400).json({ error: "pageId, name, keywords required" });
+    return;
+  }
+  const imageList: string[] = Array.isArray(images) && images.length > 0
+    ? images
+    : imageUrl ? [imageUrl] : [];
+  if (imageList.length === 0) {
+    res.status(400).json({ error: "at least one image is required" });
     return;
   }
   if (!(await assertPageOwnedByUser(pageId, (req as any).session.user.id))) {
@@ -38,7 +62,8 @@ productsRouter.post("/", async (req, res) => {
       pageId,
       name,
       keywords,
-      imageUrl,
+      imageUrl: imageList[0],
+      images: imageList,
       price,
       description,
       discount,

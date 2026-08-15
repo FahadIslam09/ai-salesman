@@ -124,6 +124,7 @@ export const products = pgTable(
     stockStatus: text("stock_status").default("available").notNull(), // available, low_stock, out_of_stock, hidden
     category: text("category"),
     variants: jsonb("variants").$type<string[]>(),
+    images: jsonb("images").$type<string[]>().default([]).notNull(),
     deliveryInfo: text("delivery_info"),
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

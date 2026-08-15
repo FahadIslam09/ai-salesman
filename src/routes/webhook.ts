@@ -1,4 +1,5 @@
-// ponytail: no X-Hub-Signature verification yet — add before real traffic.
+// ponytail: signature verification active only when APP_SECRET is set (dev-friendly).
+import { createHmac } from "node:crypto";
 import { Router } from "express";
 import { and, eq } from "drizzle-orm";
 import { env } from "../config/env";
@@ -29,6 +30,16 @@ webhookRouter.get("/", (req, res) => {
 });
 
 webhookRouter.post("/", async (req, res) => {
+  if (env.appSecret) {
+    const signature = req.headers["x-hub-signature-256"];
+    const expected = signature
+      ? createHmac("sha256", env.appSecret).update((req as any).rawBody).digest("hex")
+      : null;
+    if (!signature || typeof signature !== "string" || signature !== `sha256=${expected}`) {
+      res.sendStatus(403);
+      return;
+    }
+  }
   res.sendStatus(200); // ack first — Facebook retries if we take too long
   handleWebhook(req.body).catch((err) => console.error("webhook processing error:", err));
 });
@@ -60,6 +71,19 @@ function stripKnowledgeMarkers(text: string): string {
 async function handleWebhook(body: any) {
   const entries: any[] = body?.entry ?? [];
   for (const entry of entries) {
+    console.log(
+      "[webhook] entry:",
+      JSON.stringify(
+        entry.changes?.map((c: any) => ({
+          field: c?.field,
+          item: c?.value?.item,
+          verb: c?.value?.verb,
+          postId: c?.value?.post_id,
+          commentId: c?.value?.comment_id,
+          messaging: entry.messaging ? entry.messaging.length : 0,
+        }))
+      )
+    );
     await handleMessagingEvents(entry).catch((e) => console.error("messaging error:", e));
     await handleFeedEvents(entry).catch((e) => console.error("feed error:", e));
   }
@@ -123,7 +147,12 @@ async function handleMessagingEvents(entry: any) {
       }
     }
     const conversation = await ChatService.getOrCreateConversation(page.id, customer.id);
-    await ChatService.logMessage(conversation.id, "user", text ?? "[image]");
+    const logText = attachments?.length
+      ? text
+        ? `[Customer sent an Image]: ${text}`
+        : "[Customer sent an Image]"
+      : text ?? "";
+    await ChatService.logMessage(conversation.id, "user", logText);
     await db
       .update(customers)
       .set({ lastActiveAt: new Date() })
@@ -167,7 +196,10 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
   }
 
   const summary = await ChatService.maybeSummarize(conversation.id);
-  const basePrompt = await buildPagePrompt(page.id, botConfig);
+  const basePrompt = await buildPagePrompt(page.id, botConfig, {
+    storeName: page.name,
+    customerName: customer.name ?? undefined,
+  });
   const systemPrompt = summary ? `${basePrompt}\n\nConversation summary so far:\n${summary}` : basePrompt;
   const history = await ChatService.getRecentChatHistory(conversation.id);
   const text = items.map((i) => i.text).filter(Boolean).join("\n");
@@ -175,15 +207,24 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
 
   let reply;
   if (imageUrls.length > 0) {
-    const images: string[] = [];
+    const images: { base64: string; mime: string }[] = [];
     for (const att of imageUrls) {
       try {
-        images.push((await downloadAttachment(att.url)).toString("base64"));
+        const dl = await downloadAttachment(att.url);
+        images.push({ base64: dl.data.toString("base64"), mime: dl.contentType });
       } catch {
-        // skip undownloadable image, text-only fallback
+        // skip undownloadable image
       }
     }
-    reply = await generateReplyWithImages(systemPrompt, images, text || undefined);
+    if (images.length > 0) {
+      reply = await generateReplyWithImages(systemPrompt, images, text || undefined, history);
+    } else {
+      reply = {
+        text: "দুঃখিত, আমি ছবিটি ঠিকমতো দেখতে পাচ্ছি না 😔 আপনি কি আবার পাঠাবেন?",
+        tokensIn: 0,
+        tokensOut: 0,
+      };
+    }
   } else {
     reply = await generateReply(systemPrompt, history);
   }
@@ -244,6 +285,7 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
 async function handleFeedEvents(entry: any) {
   for (const change of entry.changes ?? []) {
     const value = change?.value;
+    console.log("[feed] change:", JSON.stringify({ field: change?.field, item: value?.item, verb: value?.verb, postId: value?.post_id, commentId: value?.comment_id }));
     if (change?.field !== "feed" || value?.item !== "comment" || value?.verb !== "add") continue;
 
     const commentId: string | undefined = value?.comment_id;
@@ -252,13 +294,16 @@ async function handleFeedEvents(entry: any) {
     if (!commentId || !postId || !message) continue;
 
     const page = await getPageByFbId(postId.split("_")[0]);
-    if (!page) continue;
+    if (!page) {
+      console.log("[feed] no page found for postId:", postId);
+      continue;
+    }
     const botConfig = await getBotConfig(page.id);
     if (!botConfig?.enabled) continue;
     const balance = await getBalance(page.userId);
     if (balance.credits <= 0) continue;
 
-    const systemPrompt = await buildPagePrompt(page.id, botConfig);
+    const systemPrompt = await buildPagePrompt(page.id, botConfig, { storeName: page.name });
     const commentPrompt = `${systemPrompt}\n\nA customer commented on a Facebook post: "${message}". Decide: if they are asking about a product or price, you must reply to the comment with a short "Check Inbox 📩" style note AND write a detailed private message with product info/price to send to their inbox. Respond ONLY with JSON: {"commentReply": "<text>", "privateMessage": "<text or empty>"}`;
 
     const reply = await generateReply(commentPrompt, []);

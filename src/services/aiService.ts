@@ -17,16 +17,22 @@ export interface HistoryMsg {
   content: string;
 }
 
+export interface ImageInput {
+  base64: string;
+  mime: string;
+}
+
+function toOpenAiMessages(history: HistoryMsg[]) {
+  return history.map((h) => ({
+    role: h.role === "model" ? ("assistant" as const) : ("user" as const),
+    content: h.content,
+  }));
+}
+
 export async function generateReply(systemPrompt: string, history: HistoryMsg[]): Promise<AiReply> {
   const res = await client.chat.completions.create({
     model: "openai/gpt-4o-mini",
-    messages: [
-      { role: "system", content: systemPrompt },
-      ...history.map((h) => ({
-        role: h.role === "model" ? ("assistant" as const) : ("user" as const),
-        content: h.content,
-      })),
-    ],
+    messages: [{ role: "system", content: systemPrompt }, ...toOpenAiMessages(history)],
     max_tokens: 1000,
   });
   return {
@@ -36,14 +42,16 @@ export async function generateReply(systemPrompt: string, history: HistoryMsg[])
   };
 }
 
+// Keeps chat history so image turns don't lose conversation context.
 export async function generateReplyWithImages(
   systemPrompt: string,
-  imagesBase64: string[],
-  question?: string
+  images: ImageInput[],
+  question?: string,
+  history: HistoryMsg[] = []
 ): Promise<AiReply> {
-  const content: any[] = imagesBase64.map((b64) => ({
+  const content: any[] = images.map((img) => ({
     type: "image_url",
-    image_url: { url: `data:image/jpeg;base64,${b64}` },
+    image_url: { url: `data:${img.mime};base64,${img.base64}` },
   }));
   if (question) content.push({ type: "text", text: question });
 
@@ -51,6 +59,7 @@ export async function generateReplyWithImages(
     model: "openai/gpt-4o-mini",
     messages: [
       { role: "system", content: systemPrompt },
+      ...toOpenAiMessages(history),
       { role: "user", content },
     ],
     max_tokens: 1000,

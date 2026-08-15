@@ -12,7 +12,15 @@ const app = express();
 app.use(cors({ origin: env.dashboardUrl, credentials: true }));
 app.all("/api/auth/*splat", toNodeHandler(auth));
 
-app.use(express.json({ limit: "1mb" }));
+// Capture raw body for webhook signature verification
+app.use(
+  express.json({
+    limit: "1mb",
+    verify: (req: any, _res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 app.use("/webhook", webhookRouter);

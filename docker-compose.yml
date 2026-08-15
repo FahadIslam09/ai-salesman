@@ -1,0 +1,29 @@
+# ponytail: single-host MVP deployment. Scale: more replicas of `backend`
+# later — but then move the in-memory queue + SSE emitter to Redis first.
+services:
+  backend:
+    build: .
+    env_file: .env
+    expose: ["3000"]
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: ./dashboard
+      args:
+        NEXT_PUBLIC_API_URL: https://api.yourdomain.com
+    expose: ["3001"]
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/letsencrypt:ro
+    depends_on:
+      - backend
+      - dashboard
+    restart: unless-stopped

@@ -41,7 +41,7 @@ export async function getUserProfile(
   }
 }
 
-export async function downloadAttachment(url: string): Promise<Buffer> {
-  const { data } = await axios.get(url, { responseType: "arraybuffer", timeout: 15000 });
-  return Buffer.from(data);
+export async function downloadAttachment(url: string): Promise<{ data: Buffer; contentType: string }> {
+  const { data, headers } = await axios.get(url, { responseType: "arraybuffer", timeout: 15000 });
+  return { data: Buffer.from(data), contentType: String(headers["content-type"] ?? "image/jpeg") };
 }

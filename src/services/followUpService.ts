@@ -52,7 +52,10 @@ async function processOne(fu: typeof followUps.$inferSelect) {
   const balance = await getBalance(page.userId);
   if (balance.credits <= 0) return;
 
-  const basePrompt = await buildPagePrompt(page.id, botConfig);
+  const basePrompt = await buildPagePrompt(page.id, botConfig, {
+    storeName: page.name,
+    customerName: customer.name ?? undefined,
+  });
   const summary = conversation ? await ChatService.maybeSummarize(conversation.id) : null;
   const systemPrompt = `${basePrompt}${summary ? `\n\nConversation summary so far:\n${summary}` : ""}`;
   const history = conversation ? await ChatService.getRecentChatHistory(conversation.id) : [];

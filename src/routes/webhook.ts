@@ -370,8 +370,8 @@ async function handleFeedEvents(entry: any) {
 A customer commented on one of your Facebook posts: "${message}"
 ${caption ? `Post caption: "${caption}"` : "The post has no caption."} ${postImage ? "Analyze the post image to identify which catalog product it shows." : ""}
 
-- If the comment is a price or product-info question: identify the exact product from the post, then write the private message following the PRICE RESPONSE FORMAT rules above (product name first, price on its own line, availability, relevant details only). Output ONLY the message text — no intro, no quotes.
-- If the comment is general or irrelevant (a non-product question, greeting, spam, emoji, off-topic): output ONLY the word NONE.`;
+- If the comment asks specifically about PRICE or BUYING (দাম কত, price, কত টাকা, অর্ডার, কিনবো, buy): identify the exact product from the post, then write the private message following the PRICE RESPONSE FORMAT rules above. Output ONLY the message text — no intro, no quotes.
+- For any OTHER comment — product-detail questions (GSM, fabric, material, size, color, quality), greetings, spam, emojis, off-topic — output ONLY the word NONE. Those are answered publicly instead.`;
 
     const privateReply = postImage
       ? await generateReplyWithImages(privatePrompt, [postImage], message, [])
@@ -386,7 +386,7 @@ ${caption ? `Post caption: "${caption}"` : "The post has no caption."} ${postIma
     if (privateMessage) {
       commentReply = "Inbox চেক করুন 📩";
     } else {
-      const publicPrompt = `${systemPrompt}\n\nA customer commented on your Facebook post: "${message}".${caption ? ` Post caption: "${caption}".` : ""} Write a short, friendly public reply (1-2 lines) to this comment. If it's spam or just an emoji, a brief "ধন্যবাদ! 😊" acknowledgment is fine. Output ONLY the reply text, nothing else.`;
+      const publicPrompt = `${systemPrompt}\n\nA customer commented on your Facebook post: "${message}".${caption ? ` Post caption: "${caption}".` : ""} Identify the product in the post from its image and caption, then answer the customer's actual question using that product's details in the catalog (GSM, fabric, material, size, color, quality, description). Answer ONLY what they asked — do not give the price or a sales pitch unless they asked for it. Keep the reply short and friendly (1-2 lines). If the comment is spam or just an emoji, a brief "ধন্যবাদ! 😊" acknowledgment is fine. Output ONLY the reply text, nothing else.`;
       const publicReply = postImage
         ? await generateReplyWithImages(publicPrompt, [postImage], message, [])
         : await generateReply(publicPrompt, [{ role: "user", content: message }]);

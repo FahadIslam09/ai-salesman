@@ -370,7 +370,7 @@ async function handleFeedEvents(entry: any) {
 A customer commented on one of your Facebook posts: "${message}"
 ${caption ? `Post caption: "${caption}"` : "The post has no caption."} ${postImage ? "Analyze the post image to identify which catalog product it shows." : ""}
 
-- If the comment is a price, order, or product-info question: identify the product from the post and write the private message to send to their inbox. Include the exact product name and price from the catalog, one key benefit, variants if any, delivery info, and a call to action to confirm the order. Output ONLY the message text — no intro, no quotes.
+- If the comment is a price or product-info question: identify the exact product from the post, then write the private message following the PRICE RESPONSE FORMAT rules above (product name first, price on its own line, availability, relevant details only). Output ONLY the message text — no intro, no quotes.
 - If the comment is general or irrelevant (a non-product question, greeting, spam, emoji, off-topic): output ONLY the word NONE.`;
 
     const privateReply = postImage

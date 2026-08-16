@@ -7,7 +7,7 @@ import { db } from "../db/db";
 import { botConfigs, conversations, customers, followUps, knowledgeRequests, messages, orders, pages } from "../db/schema";
 import { ChatService } from "../services/chatService";
 import { decryptToken } from "../services/tokenService";
-import { generateReply, generateReplyWithImages } from "../services/aiService";
+import { generateReply, generateReplyWithImages, transcribeAudio } from "../services/aiService";
 import { buildPagePrompt, getActiveProducts } from "../utils/prompt";
 import { detectAttention } from "../utils/flags";
 import { downloadAttachment, getPost, getUserProfile, replyToComment, sendImage, sendMessage, sendPrivateReply } from "../services/facebookService";
@@ -188,7 +188,27 @@ async function handleMessagingEvents(entry: any) {
     const attachments: QueueItem["attachments"] = (ev?.message?.attachments ?? [])
       .filter((a: any) => a?.type === "image")
       .map((a: any) => ({ url: a?.payload?.url, type: a.type }));
-    if (!text && (!attachments || attachments.length === 0)) continue;
+    const audioAttachments = (ev?.message?.attachments ?? []).filter((a: any) => a?.type === "audio");
+
+    let voiceText = "";
+    if (audioAttachments.length > 0) {
+      for (const a of audioAttachments) {
+        const url = a?.payload?.url;
+        if (!url) continue;
+        try {
+          const dl = await downloadAttachment(url);
+          console.log("[voice] audio downloaded:", dl.contentType, dl.data.length, "bytes");
+          const transcript = await transcribeAudio(dl.data, dl.contentType);
+          console.log("[voice] transcript:", JSON.stringify(transcript));
+          if (transcript) voiceText += transcript + " ";
+          else console.error("[voice] empty transcript");
+        } catch (err: any) {
+          console.error("[voice] failed:", err?.response?.data ?? err?.message ?? err);
+        }
+      }
+    }
+    const combinedText = [text, voiceText].filter(Boolean).join("\n").trim();
+    if (!combinedText && (!attachments || attachments.length === 0)) continue;
 
     const customer = await ChatService.getOrCreateCustomer(page.id, senderId);
     if (!customer.name) {
@@ -202,10 +222,10 @@ async function handleMessagingEvents(entry: any) {
     }
     const conversation = await ChatService.getOrCreateConversation(page.id, customer.id);
     const logText = attachments?.length
-      ? text
-        ? `[Customer sent an Image]: ${text}`
+      ? combinedText
+        ? `[Customer sent an Image]: ${combinedText}`
         : "[Customer sent an Image]"
-      : text ?? "";
+      : combinedText;
     await ChatService.logMessage(conversation.id, "user", logText, attachments?.[0]?.url ?? null);
     await db
       .update(customers)
@@ -219,7 +239,7 @@ async function handleMessagingEvents(entry: any) {
 
     if (conversation.handledBy === "human") continue;
 
-    const flag = text ? detectAttention(text) : null;
+    const flag = combinedText ? detectAttention(combinedText) : null;
     if (flag) {
       await db
         .update(conversations)
@@ -233,7 +253,7 @@ async function handleMessagingEvents(entry: any) {
 
     queue.enqueue(
       `${page.id}:${conversation.id}`,
-      { text, attachments },
+      { text: combinedText, attachments },
       (items) => processIncomingBatch(page, botConfig, customer, conversation, items)
     );
   }

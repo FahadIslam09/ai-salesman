@@ -106,7 +106,9 @@ async function findLatestScreenshot(conversationId: string): Promise<string | nu
   return row?.imageUrl ?? null;
 }
 
-async function extractOrderDetails(conversationId: string): Promise<Record<string, any> | null> {
+async function extractOrderDetails(
+  conversationId: string
+): Promise<{ details: Record<string, any>; tokensIn: number; tokensOut: number } | null> {
   const history = await ChatService.getRecentChatHistory(conversationId, 30);
   const transcript = history
     .map((m) => `${m.role === "user" ? "Customer" : "Assistant"}: ${m.content}`)
@@ -116,7 +118,8 @@ async function extractOrderDetails(conversationId: string): Promise<Record<strin
     [{ role: "user", content: transcript }]
   );
   try {
-    return JSON.parse(extractJson(res.text));
+    const details = JSON.parse(extractJson(res.text));
+    return { details, tokensIn: res.tokensIn, tokensOut: res.tokensOut };
   } catch {
     return null;
   }
@@ -191,6 +194,8 @@ async function handleMessagingEvents(entry: any) {
     const audioAttachments = (ev?.message?.attachments ?? []).filter((a: any) => a?.type === "audio");
 
     let voiceText = "";
+    let voiceTokensIn = 0;
+    let voiceTokensOut = 0;
     if (audioAttachments.length > 0) {
       for (const a of audioAttachments) {
         const url = a?.payload?.url;
@@ -198,10 +203,12 @@ async function handleMessagingEvents(entry: any) {
         try {
           const dl = await downloadAttachment(url);
           console.log("[voice] audio downloaded:", dl.contentType, dl.data.length, "bytes");
-          const transcript = await transcribeAudio(dl.data, dl.contentType);
-          console.log("[voice] transcript:", JSON.stringify(transcript));
-          if (transcript) voiceText += transcript + " ";
+          const t = await transcribeAudio(dl.data, dl.contentType);
+          console.log("[voice] transcript:", JSON.stringify(t.text));
+          if (t.text) voiceText += t.text + " ";
           else console.error("[voice] empty transcript");
+          voiceTokensIn += t.tokensIn;
+          voiceTokensOut += t.tokensOut;
         } catch (err: any) {
           console.error("[voice] failed:", err?.response?.data ?? err?.message ?? err);
         }
@@ -221,6 +228,17 @@ async function handleMessagingEvents(entry: any) {
       }
     }
     const conversation = await ChatService.getOrCreateConversation(page.id, customer.id);
+    if (voiceTokensIn > 0 || voiceTokensOut > 0) {
+      await logUsage({
+        userId: page.userId,
+        pageId: page.id,
+        conversationId: conversation.id,
+        kind: "voice_transcription",
+        tokensIn: voiceTokensIn,
+        tokensOut: voiceTokensOut,
+        creditsDeducted: 0,
+      });
+    }
     const logText = attachments?.length
       ? combinedText
         ? `[Customer sent an Image]: ${combinedText}`
@@ -269,7 +287,19 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
     return;
   }
 
-  const summary = await ChatService.maybeSummarize(conversation.id);
+  const summarizeRes = await ChatService.maybeSummarize(conversation.id);
+  if (summarizeRes && (summarizeRes.tokensIn > 0 || summarizeRes.tokensOut > 0)) {
+    await logUsage({
+      userId: page.userId,
+      pageId: page.id,
+      conversationId: conversation.id,
+      kind: "summarization",
+      tokensIn: summarizeRes.tokensIn,
+      tokensOut: summarizeRes.tokensOut,
+      creditsDeducted: 0,
+    });
+  }
+  const summary = summarizeRes?.summary ?? null;
   const basePrompt = await buildPagePrompt(page.id, botConfig, {
     storeName: page.name,
     customerName: customer.name ?? undefined,
@@ -368,8 +398,18 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
 
   if (orderConfirmed) {
     try {
-      const details = await extractOrderDetails(conversation.id);
-      if (details) {
+      const extracted = await extractOrderDetails(conversation.id);
+      if (extracted) {
+        await logUsage({
+          userId: page.userId,
+          pageId: page.id,
+          conversationId: conversation.id,
+          kind: "order_extraction",
+          tokensIn: extracted.tokensIn,
+          tokensOut: extracted.tokensOut,
+          creditsDeducted: 0,
+        });
+        const details = extracted.details;
         const screenshotUrl = await findLatestScreenshot(conversation.id);
         await db.insert(orders).values({
           pageId: page.id,

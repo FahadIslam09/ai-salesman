@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, count, desc, eq, gte, sum } from "drizzle-orm";
 import { db } from "../../db/db";
 import { payments, usageLogs } from "../../db/schema";
 import { requireAuth } from "../middleware/auth";
@@ -17,9 +17,31 @@ creditsRouter.get("/balance", async (req, res) => {
   res.json({ ...balance, level: lowCreditLevel(balance) });
 });
 
+creditsRouter.get("/usage/stats", async (req, res) => {
+  const userId = (req as any).session.user.id;
+  const conditions = [eq(usageLogs.userId, userId)];
+  if (req.query.pageId) conditions.push(eq(usageLogs.pageId, req.query.pageId as string));
+  const [row] = await db
+    .select({
+      calls: count(),
+      tokensIn: sum(usageLogs.tokensIn),
+      tokensOut: sum(usageLogs.tokensOut),
+      credits: sum(usageLogs.creditsDeducted),
+    })
+    .from(usageLogs)
+    .where(and(...conditions));
+  res.json({
+    calls: Number(row.calls ?? 0),
+    tokensIn: Number(row.tokensIn ?? 0),
+    tokensOut: Number(row.tokensOut ?? 0),
+    credits: Number(row.credits ?? 0),
+  });
+});
+
 creditsRouter.get("/usage", async (req, res) => {
   const userId = (req as any).session.user.id;
   const conditions = [eq(usageLogs.userId, userId)];
+  if (req.query.pageId) conditions.push(eq(usageLogs.pageId, req.query.pageId as string));
   if (req.query.from) conditions.push(gte(usageLogs.createdAt, new Date(req.query.from as string)));
   if (req.query.to) conditions.push(eq(usageLogs.createdAt, new Date(req.query.to as string)));
   const rows = await db

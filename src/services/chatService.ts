@@ -135,9 +135,12 @@ export class ChatService {
   /**
    * When a conversation grows past the sliding window, summarize the overflow
    * into conversations.summary so context is kept without paying for every
-   * historical message on each AI call. Returns the combined summary or null.
+   * historical message on each AI call. Returns the combined summary + token
+   * usage, or null if nothing was summarized.
    */
-  static async maybeSummarize(conversationId: string): Promise<string | null> {
+  static async maybeSummarize(
+    conversationId: string
+  ): Promise<{ summary: string; tokensIn: number; tokensOut: number } | null> {
     const [conversation] = await db
       .select()
       .from(conversations)
@@ -162,7 +165,9 @@ export class ChatService {
       if (all.length > 15) overflow = all.slice(0, all.length - 15);
     }
 
-    if (!overflow || overflow.length === 0) return conversation.summary;
+    if (!overflow || overflow.length === 0) {
+      return conversation.summary ? { summary: conversation.summary, tokensIn: 0, tokensOut: 0 } : null;
+    }
 
     const excerpt = overflow.map((m) => `${m.role}: ${m.content}`).join("\n");
     const res = await generateReply(
@@ -174,6 +179,6 @@ export class ChatService {
       .update(conversations)
       .set({ summary: combined, summarizedUpto: new Date(overflow[overflow.length - 1].createdAt) })
       .where(eq(conversations.id, conversationId));
-    return combined;
+    return { summary: combined, tokensIn: res.tokensIn, tokensOut: res.tokensOut };
   }
 }

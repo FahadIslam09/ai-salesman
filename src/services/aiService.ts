@@ -87,7 +87,7 @@ export async function generateReplyWithImages(
   };
 }
 
-export async function transcribeAudio(buffer: Buffer, contentType: string): Promise<string> {
+export async function transcribeAudio(buffer: Buffer, contentType: string): Promise<AiReply> {
   const base64 = buffer.toString("base64");
   const ct = contentType.toLowerCase();
   const format = ct.includes("wav")
@@ -114,5 +114,9 @@ export async function transcribeAudio(buffer: Buffer, contentType: string): Prom
     ],
     max_tokens: 1000,
   });
-  return res.choices[0]?.message?.content?.trim() ?? "";
+  return {
+    text: res.choices[0]?.message?.content?.trim() ?? "",
+    tokensIn: res.usage?.prompt_tokens ?? 0,
+    tokensOut: res.usage?.completion_tokens ?? 0,
+  };
 }

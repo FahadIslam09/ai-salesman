@@ -57,7 +57,19 @@ async function processOne(fu: typeof followUps.$inferSelect) {
     customerName: customer.name ?? undefined,
     customerId: customer.id,
   });
-  const summary = conversation ? await ChatService.maybeSummarize(conversation.id) : null;
+  const summarizeRes = conversation ? await ChatService.maybeSummarize(conversation.id) : null;
+  if (summarizeRes && (summarizeRes.tokensIn > 0 || summarizeRes.tokensOut > 0)) {
+    await logUsage({
+      userId: page.userId,
+      pageId: page.id,
+      conversationId: conversation!.id,
+      kind: "summarization",
+      tokensIn: summarizeRes.tokensIn,
+      tokensOut: summarizeRes.tokensOut,
+      creditsDeducted: 0,
+    });
+  }
+  const summary = summarizeRes?.summary ?? null;
   const systemPrompt = `${basePrompt}${summary ? `\n\nConversation summary so far:\n${summary}` : ""}`;
   const history = conversation ? await ChatService.getRecentChatHistory(conversation.id) : [];
 

@@ -1,12 +1,13 @@
 import { Router } from "express";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "../../db/db";
-import { botConfigs, customers, orders, pages } from "../../db/schema";
+import { botConfigs, customers, orders, pages, sales } from "../../db/schema";
 import { requireAuth } from "../middleware/auth";
 import { assertPageOwnedByUser } from "../middleware/pageAccess";
 import { decryptToken } from "../../services/tokenService";
 import { sendMessage } from "../../services/facebookService";
 import { DEFAULT_COD_MESSAGE, DEFAULT_FULL_MESSAGE } from "../../utils/prompt";
+import { emitPageEvent } from "../../utils/events";
 
 export const ordersRouter = Router();
 ordersRouter.use(requireAuth);
@@ -81,11 +82,32 @@ ordersRouter.post("/:id/verify", async (req, res) => {
     }
   }
 
+  const wasConfirmed = order.status === "confirmed";
+
   const [updated] = await db
     .update(orders)
     .set({ status: "confirmed", updatedAt: new Date() })
     .where(eq(orders.id, order.id))
     .returning();
+
+  // Record a sale for verified orders (once), so the Sales page and Overview
+  // revenue stay in sync with confirmed orders.
+  if (!wasConfirmed && order.totalAmount != null) {
+    const [sale] = await db
+      .insert(sales)
+      .values({
+        pageId: order.pageId,
+        customerId: order.customerId,
+        conversationId: order.conversationId,
+        quantity: 1,
+        amount: order.totalAmount,
+        source: "inbox",
+        aiAssisted: true,
+      })
+      .returning();
+    emitPageEvent(order.pageId, "sale", { id: sale.id });
+  }
+
   res.json(updated);
 });
 

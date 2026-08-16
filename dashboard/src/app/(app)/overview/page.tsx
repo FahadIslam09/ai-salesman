@@ -1,18 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { api, timeAgo } from "@/lib/api";
+import { API, api, fmtTaka, timeAgo } from "@/lib/api";
 import { usePage } from "@/components/PageProvider";
 import { Badge, Card, EmptyState, Spinner, Stat, statusTone } from "@/lib/ui";
 
 interface OverviewData {
   credits: { credits: number; totalPurchased: number; totalUsed: number };
+  totalCustomers: number;
   totalConversations: number;
   conversationsToday: number;
   newCustomersToday: number;
   followUpsDue: number;
+  pendingOrders: number;
   totalSales: number;
+  totalRevenue: number;
   attentionRequired: Array<{
     id: string;
     customerName: string | null;
@@ -37,9 +40,8 @@ export default function OverviewPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!pageId) return;
-    setData(null);
     setError("");
     Promise.all([
       api<OverviewData>(`/api/overview?pageId=${pageId}`),
@@ -52,13 +54,25 @@ export default function OverviewPage() {
       .catch((e) => setError(e.message));
   }, [pageId]);
 
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Real-time: refresh when anything changes on this page.
+  useEffect(() => {
+    if (!pageId) return;
+    const es = new EventSource(`${API}/api/events?pageId=${pageId}`, { withCredentials: true });
+    es.onmessage = () => load();
+    return () => es.close();
+  }, [pageId, load]);
+
   if (error) return <p className="text-sm text-danger">{error}</p>;
   if (!data) return <Spinner />;
 
   const interested = conversations.filter((c) => c.status === "interested" || c.status === "negotiating").length;
 
   const funnel = [
-    { label: "Customers", count: conversations.length, href: "/customers" },
+    { label: "Customers", count: data.totalCustomers, href: "/customers" },
     { label: "Conversations", count: data.totalConversations, href: "/inbox" },
     { label: "Leads", count: interested, href: "/customers" },
     { label: "Follow-ups", count: data.followUpsDue, href: "/follow-ups" },
@@ -68,10 +82,14 @@ export default function OverviewPage() {
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat label="AI Credits" value={data.credits.credits.toLocaleString("en-IN")} sub="remaining" />
+        <Stat
+          label="AI Credits"
+          value={data.credits.credits.toLocaleString("en-IN")}
+          sub={data.credits.credits <= 0 ? "paused — recharge to resume" : "remaining"}
+        />
         <Stat label="Conversations today" value={data.conversationsToday} />
         <Stat label="New customers today" value={data.newCustomersToday} />
-        <Stat label="Total sales" value={data.totalSales} />
+        <Stat label="Total revenue" value={fmtTaka(data.totalRevenue)} sub={`${data.totalSales} sales`} />
       </div>
 
       <Card className="p-6">
@@ -79,15 +97,37 @@ export default function OverviewPage() {
         <div className="mt-4 flex items-center gap-0 overflow-x-auto">
           {funnel.map((stage, i) => (
             <div key={stage.label} className="flex min-w-0 flex-1 items-center">
-              <div className={`min-w-[110px] rounded-xl px-4 py-3 ${i === funnel.length - 1 ? "bg-leaf text-white" : "bg-leaf-soft"}`}>
+              <Link
+                href={stage.href}
+                className={`min-w-[110px] rounded-xl px-4 py-3 transition-colors ${
+                  i === funnel.length - 1 ? "bg-leaf text-white hover:bg-[#0b563c]" : "bg-leaf-soft hover:bg-leaf"
+                }`}
+              >
                 <p className="font-display text-2xl font-semibold">{stage.count}</p>
                 <p className={`text-xs ${i === funnel.length - 1 ? "text-leaf-soft" : "text-mute"}`}>{stage.label}</p>
-              </div>
+              </Link>
               {i < funnel.length - 1 && <div className="mx-1 h-px flex-1 bg-line" />}
             </div>
           ))}
         </div>
       </Card>
+
+      <div className="grid grid-cols-2 gap-4">
+        <Link href="/follow-ups" className="group">
+          <Card className="p-5 transition-colors hover:bg-paper">
+            <p className="text-xs font-semibold uppercase tracking-wider text-mute">Follow-ups due</p>
+            <p className="mt-2 font-display text-3xl font-semibold text-ink">{data.followUpsDue}</p>
+          </Card>
+        </Link>
+        <Link href="/orders" className="group">
+          <Card className="p-5 transition-colors hover:bg-paper">
+            <p className="text-xs font-semibold uppercase tracking-wider text-mute">Pending orders</p>
+            <p className={`mt-2 font-display text-3xl font-semibold ${data.pendingOrders > 0 ? "text-warn" : "text-ink"}`}>
+              {data.pendingOrders}
+            </p>
+          </Card>
+        </Link>
+      </div>
 
       <div className="grid gap-8 lg:grid-cols-2">
         <section>

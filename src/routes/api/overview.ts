@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { and, count, desc, eq, gte, isNotNull } from "drizzle-orm";
+import { and, count, desc, eq, gte, isNotNull, sum } from "drizzle-orm";
 import { db } from "../../db/db";
-import { conversations, customers, followUps, sales } from "../../db/schema";
+import { conversations, customers, followUps, orders, sales } from "../../db/schema";
 import { requireAuth } from "../middleware/auth";
 import { assertPageOwnedByUser } from "../middleware/pageAccess";
 import { getBalance } from "../../services/creditService";
@@ -31,7 +31,15 @@ overviewRouter.get("/", async (req, res) => {
     .select({ n: count() })
     .from(followUps)
     .where(and(eq(followUps.pageId, pageId), eq(followUps.status, "scheduled")));
+  const [pendingOrders] = await db
+    .select({ n: count() })
+    .from(orders)
+    .where(and(eq(orders.pageId, pageId), eq(orders.status, "pending")));
   const [salesCount] = await db.select({ n: count() }).from(sales).where(eq(sales.pageId, pageId));
+  const [revenueRow] = await db
+    .select({ total: sum(sales.amount) })
+    .from(sales)
+    .where(eq(sales.pageId, pageId));
   const attentionRows = await db
     .select({
       id: conversations.id,
@@ -51,11 +59,14 @@ overviewRouter.get("/", async (req, res) => {
 
   res.json({
     credits: balance,
+    totalCustomers: await countAll(customers, pageId),
     totalConversations: await countAll(conversations, pageId),
     conversationsToday: conversationsToday.n,
     newCustomersToday: newCustomersToday.n,
     followUpsDue: followUpsDue.n,
+    pendingOrders: pendingOrders.n,
     totalSales: salesCount.n,
+    totalRevenue: Number(revenueRow?.total ?? 0),
     attentionRequired: attentionRows,
   });
 });

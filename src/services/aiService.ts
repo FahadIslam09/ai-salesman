@@ -31,7 +31,7 @@ function toOpenAiMessages(history: HistoryMsg[]) {
 
 export async function generateReply(systemPrompt: string, history: HistoryMsg[]): Promise<AiReply> {
   const res = await client.chat.completions.create({
-    model: "openai/gpt-4o-mini",
+    model: "google/gemini-2.5-flash-lite",
     messages: [{ role: "system", content: systemPrompt }, ...toOpenAiMessages(history)],
     max_tokens: 1000,
   });
@@ -56,7 +56,7 @@ export async function generateReplyWithImages(
   if (question) content.push({ type: "text", text: question });
 
   const res = await client.chat.completions.create({
-    model: "openai/gpt-4o-mini",
+    model: "google/gemini-2.5-flash-lite",
     messages: [
       { role: "system", content: systemPrompt },
       ...toOpenAiMessages(history),

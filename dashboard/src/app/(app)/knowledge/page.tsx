@@ -28,6 +28,8 @@ export default function KnowledgePage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ question: "", answer: "" });
 
   const load = () => {
     if (!pageId) return;
@@ -70,6 +72,26 @@ export default function KnowledgePage() {
     load();
   }
 
+  function startEdit(f: Faq) {
+    setEditingId(f.id);
+    setEditForm({ question: f.question, answer: f.answer });
+  }
+
+  async function saveEdit() {
+    if (!editingId) return;
+    await api(`/api/knowledge/faqs/${editingId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ question: editForm.question, answer: editForm.answer }),
+    });
+    setEditingId(null);
+    load();
+  }
+
+  async function removeFaq(id: string) {
+    await api(`/api/knowledge/faqs/${id}`, { method: "DELETE" });
+    load();
+  }
+
   if (loading) return <Spinner />;
 
   return (
@@ -95,8 +117,42 @@ export default function KnowledgePage() {
           <Card className="divide-y divide-line">
             {faqs.map((f) => (
               <div key={f.id} className="px-4 py-3">
-                <p className="text-sm font-medium text-ink">{f.question}</p>
-                <p className="mt-1 text-sm text-mute">{f.answer}</p>
+                {editingId === f.id ? (
+                  <div className="space-y-2">
+                    <Input
+                      value={editForm.question}
+                      onChange={(e) => setEditForm({ ...editForm, question: e.target.value })}
+                    />
+                    <TextArea
+                      rows={2}
+                      value={editForm.answer}
+                      onChange={(e) => setEditForm({ ...editForm, answer: e.target.value })}
+                    />
+                    <div className="flex gap-2">
+                      <Button onClick={saveEdit} className="py-1.5 text-xs">
+                        Save
+                      </Button>
+                      <Button variant="ghost" onClick={() => setEditingId(null)} className="py-1.5 text-xs">
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-ink">{f.question}</p>
+                      <p className="mt-1 text-sm text-mute">{f.answer}</p>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <Button variant="ghost" onClick={() => startEdit(f)} className="py-1.5 text-xs">
+                        Edit
+                      </Button>
+                      <Button variant="ghost" onClick={() => removeFaq(f.id)} className="py-1.5 text-xs">
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </Card>

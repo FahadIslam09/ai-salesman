@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { desc, eq } from "drizzle-orm";
 import { db } from "../../db/db";
-import { sales } from "../../db/schema";
+import { customers, products, sales } from "../../db/schema";
 import { requireAuth } from "../middleware/auth";
 import { assertPageOwnedByUser } from "../middleware/pageAccess";
+import { emitPageEvent } from "../../utils/events";
 
 export const salesRouter = Router();
 salesRouter.use(requireAuth);
@@ -15,8 +16,19 @@ salesRouter.get("/", async (req, res) => {
     return;
   }
   const rows = await db
-    .select()
+    .select({
+      id: sales.id,
+      quantity: sales.quantity,
+      amount: sales.amount,
+      source: sales.source,
+      aiAssisted: sales.aiAssisted,
+      createdAt: sales.createdAt,
+      customerName: customers.name,
+      productName: products.name,
+    })
     .from(sales)
+    .leftJoin(customers, eq(sales.customerId, customers.id))
+    .leftJoin(products, eq(sales.productId, products.id))
     .where(eq(sales.pageId, pageId))
     .orderBy(desc(sales.createdAt))
     .limit(200);
@@ -46,5 +58,6 @@ salesRouter.post("/", async (req, res) => {
       aiAssisted: aiAssisted ?? true,
     })
     .returning();
+  emitPageEvent(pageId, "sale", { id: row.id });
   res.status(201).json(row);
 });

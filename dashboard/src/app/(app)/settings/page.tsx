@@ -7,7 +7,6 @@ import { Button, Card, Field, Input, Select, Spinner, TextArea } from "@/lib/ui"
 
 interface BotConfig {
   enabled: boolean;
-  businessInfo: string | null;
   tone: string;
   language: string;
   customInstructions: string | null;
@@ -18,7 +17,6 @@ export default function SettingsPage() {
   const [config, setConfig] = useState<BotConfig | null>(null);
   const [form, setForm] = useState({
     enabled: true,
-    businessInfo: "",
     tone: "friendly",
     language: "auto",
     customInstructions: "",
@@ -33,7 +31,6 @@ export default function SettingsPage() {
         setConfig(c);
         setForm({
           enabled: c.enabled,
-          businessInfo: c.businessInfo ?? "",
           tone: c.tone,
           language: c.language,
           customInstructions: c.customInstructions ?? "",
@@ -52,7 +49,6 @@ export default function SettingsPage() {
         method: "PATCH",
         body: JSON.stringify({
           ...form,
-          businessInfo: form.businessInfo || null,
           customInstructions: form.customInstructions || null,
         }),
       });
@@ -102,14 +98,6 @@ export default function SettingsPage() {
             <option value="bangla">Bangla</option>
             <option value="english">English</option>
           </Select>
-        </Field>
-        <Field label="Business information">
-          <TextArea
-            rows={4}
-            value={form.businessInfo}
-            onChange={(e) => setForm({ ...form, businessInfo: e.target.value })}
-            placeholder="What you sell, where you are, what makes your shop special…"
-          />
         </Field>
         <Field label="Custom instructions">
           <TextArea

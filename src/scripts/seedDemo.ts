@@ -18,13 +18,13 @@ async function main() {
       pageId: page.id,
       enabled: true,
       businessInfo:
-        "Noksha Fashion is a premium clothing shop in Shaheb Bazar, Rajshahi. We sell panjabi, sharee, t-shirts, formal shirts and denim jackets. Known for good quality at fair prices. Open 10am-9pm, closed on Friday mornings.",
+        "Noksha Fashion একটি প্রিমিয়াম পোশাকের শপ। আমরা ছেলেদের জন্য Premium Panjabi, Sharee, T-Shirt, Formal Shirt এবং Denim Jacket বিক্রি করি। ভালো মানের কাপড়, আধুনিক ডিজাইন এবং যুক্তিসঙ্গত দামের ওপর আমরা গুরুত্ব দিই।",
       tone: "friendly",
       language: "auto",
       customInstructions:
         "Always mention delivery charge and time when a customer asks about a product. Offer the 10% discount for orders above ৳1,000 before closing the sale.",
     })
-    .onConflictDoUpdate({ target: botConfigs.pageId, set: { businessInfo: "Noksha Fashion is a premium clothing shop in Shaheb Bazar, Rajshahi. We sell panjabi, sharee, t-shirts, formal shirts and denim jackets. Known for good quality at fair prices. Open 10am-9pm, closed on Friday mornings.", customInstructions: "Always mention delivery charge and time when a customer asks about a product. Offer the 10% discount for orders above ৳1,000 before closing the sale." } });
+    .onConflictDoUpdate({ target: botConfigs.pageId, set: { businessInfo: "Noksha Fashion একটি প্রিমিয়াম পোশাকের শপ। আমরা ছেলেদের জন্য Premium Panjabi, Sharee, T-Shirt, Formal Shirt এবং Denim Jacket বিক্রি করি। ভালো মানের কাপড়, আধুনিক ডিজাইন এবং যুক্তিসঙ্গত দামের ওপর আমরা গুরুত্ব দিই।", customInstructions: "Always mention delivery charge and time when a customer asks about a product. Offer the 10% discount for orders above ৳1,000 before closing the sale." } });
 
   await db.delete(products).where(eq(products.pageId, page.id));
   await db.delete(faqs).where(eq(faqs.pageId, page.id));

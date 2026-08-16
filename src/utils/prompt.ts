@@ -2,11 +2,37 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "../db/db";
 import { faqs, products } from "../db/schema";
 
+export const DEFAULT_ORDER_INFO =
+  "অর্ডারের জন্য Customer-এর নাম, ফোন নম্বর, Delivery Address এবং পণ্যের নাম/সাইজ প্রয়োজন হবে।";
+export const DEFAULT_PAYMENT_INFO = "Payment Method: Cash on Delivery, bKash, Nagad";
+export const DEFAULT_DELIVERY_INFO =
+  "Inside Dhaka: 60 tk & delivery time 1–2 days\nOutside Dhaka: 120 tk & delivery time 3–4 days";
+export const DEFAULT_RETURN_POLICY =
+  "পণ্য হাতে পাওয়ার ৭ দিনের মধ্যে Return Request করা যাবে, যদি পণ্যে কোনো Manufacturing Defect থাকে অথবা ভুল Product পাঠানো হয়ে থাকে।";
+export const DEFAULT_EXCHANGE_POLICY =
+  "Product Availability সাপেক্ষে ৭ দিনের মধ্যে Size Exchange করা যাবে।";
+export const DEFAULT_REFUND_POLICY =
+  "Returned Product যাচাই করার পর Return অনুমোদিত হলে Refund Process করা হবে।";
+export const DEFAULT_WARRANTY =
+  "কোনো Product-এর ক্ষেত্রে আলাদাভাবে উল্লেখ না থাকলে Warranty দেওয়া হয় না।";
+
 export interface PromptInput {
   botConfig: {
     tone?: string | null;
     language?: string | null;
     businessInfo?: string | null;
+    businessName?: string | null;
+    businessType?: string | null;
+    contactNumber?: string | null;
+    orderInfo?: string | null;
+    paymentInfo?: string | null;
+    deliveryInfo?: string | null;
+    additionalInfo?: string | null;
+    returnPolicy?: string | null;
+    exchangePolicy?: string | null;
+    refundPolicy?: string | null;
+    warranty?: string | null;
+    useBusinessInfo?: boolean | null;
     customInstructions?: string | null;
   };
   products: Array<{
@@ -53,8 +79,22 @@ Your #2 goal: make the customer feel valued so they come back.`,
 - NEVER use "নমস্কার" as a greeting. Use "আসসালামু আলাইকুম", "হ্যালো", or just jump straight into the response. This audience is Bangladeshi Muslim majority.`
   );
 
-  if (input.botConfig.businessInfo) {
-    parts.push(`## BUSINESS CONTEXT\n${input.botConfig.businessInfo}`);
+  if (input.botConfig.useBusinessInfo !== false) {
+    const bc = input.botConfig;
+    const lines: string[] = [];
+    if (bc.businessName) lines.push(`Business name: ${bc.businessName}`);
+    if (bc.businessType) lines.push(`Category: ${bc.businessType}`);
+    if (bc.contactNumber) lines.push(`Contact number: ${bc.contactNumber}`);
+    if (bc.businessInfo) lines.push(bc.businessInfo);
+    lines.push(`Order requirements: ${bc.orderInfo ?? DEFAULT_ORDER_INFO}`);
+    lines.push(`Payment methods: ${bc.paymentInfo ?? DEFAULT_PAYMENT_INFO}`);
+    lines.push(`Delivery information: ${bc.deliveryInfo ?? DEFAULT_DELIVERY_INFO}`);
+    lines.push(`Return policy: ${bc.returnPolicy ?? DEFAULT_RETURN_POLICY}`);
+    lines.push(`Exchange policy: ${bc.exchangePolicy ?? DEFAULT_EXCHANGE_POLICY}`);
+    lines.push(`Refund policy: ${bc.refundPolicy ?? DEFAULT_REFUND_POLICY}`);
+    lines.push(`Warranty: ${bc.warranty ?? DEFAULT_WARRANTY}`);
+    if (bc.additionalInfo) lines.push(`Additional business info: ${bc.additionalInfo}`);
+    parts.push(`## BUSINESS CONTEXT (business facts: name, order requirements, payment methods, delivery, policies)\n${lines.join("\n")}`);
   }
 
   if (input.products.length > 0) {
@@ -163,7 +203,7 @@ Price rules:
 ## DELIVERY RULES
 - Only discuss delivery when the customer asks about delivery, shipping, or delivery time.
 - When they ask for a delivery charge or time, do NOT guess or state any charge yet. Your reply must ONLY ask for their location, e.g. "আপনার ডেলিভারি লোকেশন কোথায়?" — do not mention any price in this message.
-- After the customer tells you their location (district/area), then give the delivery charge/time for that location from the store policies/FAQ. Use "টাকা" (never the ৳ symbol).
+- After the customer tells you their location (district/area), then give the delivery charge/time for that location from the Delivery information in the BUSINESS CONTEXT (or the store policies/FAQ if no delivery info is provided). Use "টাকা" (never the ৳ symbol).
 - Never combine the location question with a charge, and never state a location-specific charge before the customer has told you their location.`,
 
     `## STRICT GUARDRAILS (violating any = failure)
@@ -190,9 +230,21 @@ Price rules:
 
 export interface BotConfigLike {
   enabled: boolean;
+  useBusinessInfo: boolean | null;
   tone: string | null;
   language: string | null;
+  businessName: string | null;
+  businessType: string | null;
+  contactNumber: string | null;
   businessInfo: string | null;
+  orderInfo: string | null;
+  paymentInfo: string | null;
+  deliveryInfo: string | null;
+  additionalInfo: string | null;
+  returnPolicy: string | null;
+  exchangePolicy: string | null;
+  refundPolicy: string | null;
+  warranty: string | null;
   customInstructions: string | null;
 }
 

@@ -12,9 +12,26 @@ export async function sendMessage(pageAccessToken: string, psid: string, text: s
 }
 
 export async function sendImage(pageAccessToken: string, psid: string, url: string): Promise<void> {
+  // Download ourselves and upload to Facebook as an attachment: sending a raw
+  // URL makes Facebook fetch it, which times out on slow hosts (ImgBB → #-2).
+  const dl = await downloadAttachment(url);
+  const form = new FormData();
+  form.append("message", JSON.stringify({ attachment: { type: "image", payload: { is_reusable: false } } }));
+  form.append("filedata", new Blob([new Uint8Array(dl.data)], { type: dl.contentType }), "image.jpg");
+
+  const uploadRes = await fetch(
+    `${GRAPH}/me/message_attachments?access_token=${encodeURIComponent(pageAccessToken)}`,
+    { method: "POST", body: form }
+  );
+  const uploadData: any = await uploadRes.json();
+  const attachmentId: string | undefined = uploadData?.attachment_id;
+  if (!attachmentId) {
+    throw new Error(`attachment upload failed: ${JSON.stringify(uploadData)}`);
+  }
+
   await axios.post(
     `${GRAPH}/me/messages`,
-    { recipient: { id: psid }, message: { attachment: { type: "image", payload: { url } } } },
+    { recipient: { id: psid }, message: { attachment: { type: "image", payload: { attachment_id: attachmentId } } } },
     { params: { access_token: pageAccessToken } }
   );
 }

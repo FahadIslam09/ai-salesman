@@ -320,8 +320,12 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
             if (!product) continue;
             const urls = product.images?.length ? product.images : [product.imageUrl];
             for (const url of urls) {
-              await sendImage(token, customer.psid, url);
-              await ChatService.logMessage(conversation.id, "model", `[Image sent: ${url}]`);
+              try {
+                await sendImage(token, customer.psid, url);
+                await ChatService.logMessage(conversation.id, "model", `[Image sent: ${url}]`);
+              } catch (err: any) {
+                console.error(`[sendImage] failed for ${url}:`, err?.response?.data?.error?.message ?? err?.message ?? err);
+              }
             }
           }
         }

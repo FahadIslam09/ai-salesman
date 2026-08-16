@@ -83,12 +83,15 @@ productsRouter.patch("/:id", async (req, res) => {
     return;
   }
   const allowed = [
-    "name", "keywords", "imageUrl", "price", "description", "discount",
+    "name", "keywords", "imageUrl", "images", "price", "description", "discount",
     "stockStatus", "category", "variants", "deliveryInfo",
   ] as const;
   const set: Record<string, unknown> = {};
   for (const key of allowed) {
     if (req.body[key] !== undefined) set[key] = req.body[key];
+  }
+  if (Array.isArray(set.images)) {
+    set.imageUrl = (set.images as string[])[0] ?? product.imageUrl;
   }
   const [updated] = await db.update(products).set(set).where(eq(products.id, product.id)).returning();
   res.json(updated);

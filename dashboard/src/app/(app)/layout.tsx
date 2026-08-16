@@ -8,21 +8,46 @@ import { PageProvider, usePage } from "@/components/PageProvider";
 import { Spinner } from "@/lib/ui";
 
 const NAV = [
-  { href: "/overview", label: "Overview" },
-  { href: "/inbox", label: "Inbox" },
-  { href: "/customers", label: "Customers" },
-  { href: "/products", label: "Products" },
-  { href: "/sales", label: "Sales" },
-  { href: "/follow-ups", label: "Follow-ups" },
-  { href: "/knowledge", label: "AI Knowledge" },
-  { href: "/activity", label: "AI Activity" },
-  { href: "/analytics", label: "Analytics" },
-  { href: "/credits", label: "Credits" },
-  { href: "/notifications", label: "Notifications" },
-  { href: "/business-info", label: "Business Info" },
-  { href: "/settings", label: "Settings" },
-  { href: "/accounts", label: "Connected Pages" },
+  {
+    section: "Main",
+    items: [
+      { href: "/overview", label: "Overview" },
+      { href: "/inbox", label: "Inbox" },
+      { href: "/customers", label: "Customers" },
+      { href: "/products", label: "Products" },
+      { href: "/sales", label: "Sales" },
+      { href: "/follow-ups", label: "Follow-ups" },
+    ],
+  },
+  {
+    section: "AI",
+    items: [
+      { href: "/knowledge", label: "AI Knowledge" },
+      { href: "/activity", label: "AI Activity" },
+    ],
+  },
+  {
+    section: "Insights",
+    items: [{ href: "/analytics", label: "Analytics" }],
+  },
+  {
+    section: "Business",
+    items: [
+      { href: "/business-info", label: "Business Info" },
+      { href: "/accounts", label: "Connected Pages" },
+      { href: "/notifications", label: "Notifications" },
+    ],
+  },
+  {
+    section: "Account",
+    items: [
+      { href: "/credits", label: "Credits" },
+      { href: "/settings", label: "Settings" },
+    ],
+  },
 ];
+
+const ALL_NAV_ITEMS = NAV.flatMap((g) => g.items);
 
 function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -43,20 +68,27 @@ function Shell({ children }: { children: ReactNode }) {
           <p className="text-xs text-mute">F-commerce copilot</p>
         </div>
         <nav className="flex-1 overflow-y-auto px-3 py-4">
-          {NAV.map((item) => {
-            const active = pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`mb-0.5 block rounded-lg px-3 py-2 text-sm transition-colors ${
-                  active ? "bg-leaf-soft font-medium text-leaf" : "text-ink hover:bg-paper"
-                }`}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
+          {NAV.map((group) => (
+            <div key={group.section} className="mb-4 last:mb-0">
+              <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-mute">
+                {group.section}
+              </p>
+              {group.items.map((item) => {
+                const active = pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`mb-0.5 block rounded-lg px-3 py-2 text-sm transition-colors ${
+                      active ? "bg-leaf-soft font-medium text-leaf" : "text-ink hover:bg-paper"
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
         <div className="border-t border-line px-5 py-4">
           {credits !== null && (
@@ -84,7 +116,7 @@ function Shell({ children }: { children: ReactNode }) {
       <div className="ml-60 flex-1">
         <header className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-paper/90 px-8 py-3 backdrop-blur">
           <h1 className="font-display text-lg font-semibold text-ink">
-            {NAV.find((n) => pathname.startsWith(n.href))?.label ?? ""}
+            {ALL_NAV_ITEMS.find((n) => pathname.startsWith(n.href))?.label ?? ""}
           </h1>
           {pages.length > 0 && (
             <select

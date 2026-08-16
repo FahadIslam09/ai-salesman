@@ -1,6 +1,6 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "../db/db";
-import { faqs, products } from "../db/schema";
+import { faqs, orders, products } from "../db/schema";
 
 export const DEFAULT_ORDER_INFO =
   "অর্ডারের জন্য Customer-এর নাম, ফোন নম্বর, Delivery Address এবং পণ্যের নাম/সাইজ প্রয়োজন হবে।";
@@ -277,18 +277,47 @@ export async function getActiveProducts(pageId: string) {
 export async function buildPagePrompt(
   pageId: string,
   botConfig: BotConfigLike,
-  opts?: { storeName?: string | null; customerName?: string | null }
+  opts?: { storeName?: string | null; customerName?: string | null; customerId?: string }
 ): Promise<string> {
   const productRows = await getActiveProducts(pageId);
   const faqRows = await db
     .select()
     .from(faqs)
     .where(and(eq(faqs.pageId, pageId), eq(faqs.isActive, true)));
-  return buildSystemPrompt({
+  let prompt = buildSystemPrompt({
     botConfig,
     products: productRows,
     faqs: faqRows,
     storeName: opts?.storeName,
     customerName: opts?.customerName,
   });
+
+  if (opts?.customerId) {
+    const [order] = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.customerId, opts.customerId))
+      .orderBy(desc(orders.createdAt))
+      .limit(1);
+    if (order) {
+      const lines = [
+        order.customerName ? `Name: ${order.customerName}` : "",
+        order.phone ? `Phone: ${order.phone}` : "",
+        order.address ? `Address: ${order.address}` : "",
+        order.productName
+          ? `Product: ${order.productName}${order.sizeVariant ? ` (${order.sizeVariant})` : ""}`
+          : "",
+        order.paymentMethod
+          ? `Payment: ${order.paymentMethod === "cod" ? "Cash on Delivery" : "Full Payment"}`
+          : "",
+        order.totalAmount != null ? `Total: ${order.totalAmount} টাকা` : "",
+        `Order status: ${order.status}`,
+      ].filter(Boolean);
+      if (lines.length) {
+        prompt += `\n\n## CUSTOMER'S LATEST ORDER (remember these order details across the conversation)\n${lines.join("\n")}`;
+      }
+    }
+  }
+
+  return prompt;
 }

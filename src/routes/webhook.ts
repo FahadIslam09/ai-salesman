@@ -253,6 +253,7 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
   const basePrompt = await buildPagePrompt(page.id, botConfig, {
     storeName: page.name,
     customerName: customer.name ?? undefined,
+    customerId: customer.id,
   });
   const systemPrompt = summary ? `${basePrompt}\n\nConversation summary so far:\n${summary}` : basePrompt;
   const history = await ChatService.getRecentChatHistory(conversation.id);
@@ -367,6 +368,12 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
           screenshotUrl,
           status: "pending",
         });
+        if (details.customerName && !customer.name) {
+          await db
+            .update(customers)
+            .set({ name: details.customerName })
+            .where(eq(customers.id, customer.id));
+        }
         emitPageEvent(page.id, "order", { status: "pending" });
       }
     } catch (err) {

@@ -55,6 +55,7 @@ async function processOne(fu: typeof followUps.$inferSelect) {
   const basePrompt = await buildPagePrompt(page.id, botConfig, {
     storeName: page.name,
     customerName: customer.name ?? undefined,
+    customerId: customer.id,
   });
   const summary = conversation ? await ChatService.maybeSummarize(conversation.id) : null;
   const systemPrompt = `${basePrompt}${summary ? `\n\nConversation summary so far:\n${summary}` : ""}`;

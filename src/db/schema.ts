@@ -102,6 +102,9 @@ export const botConfigs = pgTable("bot_configs", {
   exchangePolicy: text("exchange_policy"),
   refundPolicy: text("refund_policy"),
   warranty: text("warranty"),
+  paymentNumber: text("payment_number"),
+  codMessage: text("cod_message"),
+  fullMessage: text("full_message"),
   tone: text("tone").default("friendly").notNull(),
   language: text("language").default("auto").notNull(),
   workingHours: jsonb("working_hours"),
@@ -192,6 +195,7 @@ export const messages = pgTable(
     conversationId: uuid("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
     role: text("role").notNull(), // user, model, human
     content: text("content").notNull(),
+    imageUrl: text("image_url"),
     fbMessageId: text("fb_message_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -234,6 +238,35 @@ export const sales = pgTable("sales", {
   aiAssisted: boolean("ai_assisted").default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const orders = pgTable(
+  "orders",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    pageId: uuid("page_id").notNull().references(() => pages.id, { onDelete: "cascade" }),
+    customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+    conversationId: uuid("conversation_id").references(() => conversations.id),
+    customerName: text("customer_name"),
+    phone: text("phone"),
+    address: text("address"),
+    productName: text("product_name"),
+    sizeVariant: text("size_variant"),
+    paymentMethod: text("payment_method"), // cod, full
+    totalAmount: integer("total_amount"),
+    deliveryCharge: integer("delivery_charge"),
+    remainingAmount: integer("remaining_amount"),
+    paymentNumber: text("payment_number"),
+    screenshotUrl: text("screenshot_url"),
+    status: text("status").default("pending").notNull(), // pending, confirmed, rejected
+    rejectionReason: text("rejection_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    pageIdStatusIdx: index("orders_page_id_status_idx").on(table.pageId, table.status),
+    pageIdCreatedAtIdx: index("orders_page_id_created_at_idx").on(table.pageId, table.createdAt),
+  })
+);
 
 // -------------------------------------------------------------
 // Billing & Quota Tables

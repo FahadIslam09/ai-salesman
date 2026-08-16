@@ -77,12 +77,14 @@ export class ChatService {
   static async logMessage(
     conversationId: string,
     role: "user" | "model" | "human",
-    content: string
+    content: string,
+    imageUrl?: string | null
   ) {
     await db.insert(messages).values({
       conversationId,
       role,
       content,
+      imageUrl,
       createdAt: new Date(),
     });
 

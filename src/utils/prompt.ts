@@ -15,6 +15,13 @@ export const DEFAULT_REFUND_POLICY =
   "Returned Product যাচাই করার পর Return অনুমোদিত হলে Refund Process করা হবে।";
 export const DEFAULT_WARRANTY =
   "কোনো Product-এর ক্ষেত্রে আলাদাভাবে উল্লেখ না থাকলে Warranty দেওয়া হয় না।";
+export const DEFAULT_COD_MESSAGE = `আপনার Payment Verify হয়ে গেছে! ✅ আপনার Order Confirm করা হলো।
+খুব শীঘ্রই আমরা প্রোডাক্টটি প্যাক করে Courier-এর মাধ্যমে পাঠিয়ে দেব। ডেলিভারি পেতে সাধারণত [X-Y কার্যদিবস] সময় লাগে।
+পণ্য হাতে পাওয়ার পর বাকি টাকা ({{remaining_amount}} টাকা) Cash দিয়ে পরিশোধ করবেন।
+কোনো প্রশ্ন থাকলে জানাবেন! 😊`;
+export const DEFAULT_FULL_MESSAGE = `আপনার Payment Verify হয়ে গেছে! ✅ আপনার Order Confirm করা হলো।
+খুব শীঘ্রই আমরা প্রোডাক্টটি প্যাক করে পাঠিয়ে দেওয়া হবে। ডেলিভারি পেতে সাধারণত [X-Y কার্যদিবস] সময় লাগবে।
+ধন্যবাদ আমাদের সাথে অর্ডার করার জন্য! 😊`;
 
 export interface PromptInput {
   botConfig: {
@@ -32,6 +39,9 @@ export interface PromptInput {
     exchangePolicy?: string | null;
     refundPolicy?: string | null;
     warranty?: string | null;
+    paymentNumber?: string | null;
+    codMessage?: string | null;
+    fullMessage?: string | null;
     useBusinessInfo?: boolean | null;
     customInstructions?: string | null;
   };
@@ -88,6 +98,7 @@ Your #2 goal: make the customer feel valued so they come back.`,
     if (bc.businessInfo) lines.push(bc.businessInfo);
     lines.push(`Order requirements: ${bc.orderInfo ?? DEFAULT_ORDER_INFO}`);
     lines.push(`Payment methods: ${bc.paymentInfo ?? DEFAULT_PAYMENT_INFO}`);
+    if (bc.paymentNumber) lines.push(`Payment number (bKash/Nagad): ${bc.paymentNumber}`);
     lines.push(`Delivery information: ${bc.deliveryInfo ?? DEFAULT_DELIVERY_INFO}`);
     lines.push(`Return policy: ${bc.returnPolicy ?? DEFAULT_RETURN_POLICY}`);
     lines.push(`Exchange policy: ${bc.exchangePolicy ?? DEFAULT_EXCHANGE_POLICY}`);
@@ -128,43 +139,47 @@ Your #2 goal: make the customer feel valued so they come back.`,
   parts.push(
     `## SALES FUNNEL (follow this sequence naturally)
 
-**Step 1 — Greet & Hook** (first message only)
-- Welcome warmly. If you know their name, use it.
-- If they ask about a specific product: confirm availability + state price + one compelling benefit.
-- If they say something vague ("কি কি আছে?", "দাম কত?"): ask which category or product they're interested in. Never dump the full catalog.
+**Step 1 — Product interest**
+- Confirm the product (name, color/variant). If size applies, ask for it.
+- State the price + delivery charge (mention both Inside Dhaka and Outside Dhaka from the delivery info if they differ).
+- If they say something vague ("কি কি আছে?", "দাম কত?"): ask which product they're interested in. Never dump the full catalog.
 
-**Step 2 — Qualify & Probe**
-- Ask what they need: occasion, preference, budget range.
-- Listen for buying signals: "আছে?", "দাম?", "অর্ডার করবো" = they want to buy. Move fast.
-- Ask ONE question at a time. Never stack multiple questions.
+**Step 2 — Collect order info**
+Ask naturally (a couple at a time):
+- Name
+- Phone number
+- Delivery address (with district/area so the delivery charge is correct)
+- Size (if applicable)
 
-**Step 3 — Present & Persuade**
-- State the product, price, and 1-2 key benefits (quality, material, bestseller status).
-- If a discount/offer is active, highlight it with urgency: "আজকের অফারে X টাকা ছাড়!" 🔥
-- If the product has variants (size/color), ask their preference now.
+**Step 3 — Ask payment method**
+Ask: "আপনি কি Cash on Delivery-তে অর্ডার করতে চান, নাকি এখনই bKash/Nagad-এ Full Payment করে দিতে চান?"
+- If Cash on Delivery: "জ্বি, Cash on Delivery-তে অর্ডার নেওয়া হয়। তবে ফেক অর্ডার এড়াতে আমাদের আগে শুধু Delivery Charge-টা bKash/Nagad-এ পেমেন্ট করতে হয়। বাকি Product Price আপনি পণ্য হাতে পেয়ে Cash-এ পেমেন্ট করবেন। আপনার এলাকায় Delivery Charge: [XX] টাকা।"
+- If Full Payment: "ঠিক আছে, তাহলে Product Price + Delivery Charge মিলিয়ে মোট [XX] টাকা bKash/Nagad-এ পেমেন্ট করে দিন।"
 
-**Step 4 — Handle Objections**
-- "দাম বেশি" (too expensive) → Acknowledge, then reframe value: "ভাই, এই কোয়ালিটিতে এই দাম মার্কেটে পাবেন না। প্লাস ফ্রি ডেলিভারি!" Or offer a budget alternative.
-- "ভাবছি" (thinking) → Create soft urgency: "স্টক কম আছে, হোল্ড করে রাখতে পারবো না 😅 এখনই confirm করলে আজকেই dispatch হবে!"
-- "অন্য জায়গায় কম" (cheaper elsewhere) → Never badmouth. Say: "আমাদের প্রোডাক্ট অরিজিনাল কোয়ালিটি + ওয়ারেন্টি/গ্যারান্টি সহ। কম্পেয়ার করলে ভ্যালু বেশি পাবেন ✅"
-- Never argue. Always redirect to value.
+**Step 4 — Give payment number**
+"নিচের নাম্বারে Send Money করুন:
+📱 [payment number from BUSINESS CONTEXT] (bKash/Nagad — Personal)
+Amount: [XX] টাকা [যা প্রযোজ্য: Full Payment / শুধু Delivery Charge]
+Send Money করার পর: 1️⃣ Payment Screenshot 2️⃣ যে নাম্বার থেকে পেমেন্ট করেছেন সেটা — পাঠিয়ে দিন।"
+If there is no payment number in BUSINESS CONTEXT, do NOT invent one — say the team will share the number and append on its own line: [KNOWLEDGE_REQUEST: payment number].
 
-**Step 5 — Close the Order**
-- Ask for delivery address (with district/area for delivery charge calculation).
-- State the total clearly:
-  \`\`\`
-  🧾 অর্ডার সামারি:
-  [Product] × 1 — X টাকা
-  ডেলিভারি — Y টাকা
-  ──────────
-  মোট: Z টাকা
-  \`\`\`
-- Ask for final confirmation: "কনফার্ম করবেন? ✅"
+**Step 5 — If only a screenshot is sent**
+"Screenshot পেয়েছি, ধন্যবাদ! এবার একটু বলবেন কোন bKash/Nagad নাম্বার থেকে Payment করেছেন?"
 
-**Step 6 — Post-Sale**
-- Thank them genuinely.
-- Give estimated delivery time.
-- Say: "কোনো প্রশ্ন থাকলে যেকোনো সময় মেসেজ করবেন! 😊"`,
+**Step 6 — Order summary & confirm**
+Once you have all the info, show the summary and confirm:
+"আপনার Order Details:
+🔸 Product: [Product Name, Size/Color]
+🔸 Name: [Name]
+🔸 Phone: [Phone]
+🔸 Address: [Address]
+🔸 Payment: [COD (Delivery Charge Paid) / Full Payment]
+সব তথ্য ঠিক আছে তো?"
+
+**Step 7 — Final message**
+After the customer confirms, send the final thank-you and append this marker on its own line at the very end: [ORDER_CONFIRMED]
+"ধন্যবাদ আপনার Order-টির জন্য! ✅ আপনার Payment Details verify চলছে, আমাদের Admin Serial অনুযায়ী চেক করে ১-২ ঘণ্টার মধ্যে আপনার Order Confirm করবেন। কোনো সমস্যা হলে আমরা আপনাকে নক দেব।"
+(Optional: "⚠️ Payment Screenshot অস্পষ্ট হলে বা Amount না মিললে আমরা আবার যোগাযোগ করব। Order confirm হওয়ার পর সাধারণত ২-৩ কার্যদিবসের মধ্যে Delivery হয়ে যায়।")`,
 
     `## SMART SELLING TACTICS
 - **Upsell**: After they pick a product, suggest a complementary item naturally: "এটার সাথে [X] নিলে কম্বো অফারে পাবেন!"
@@ -245,6 +260,9 @@ export interface BotConfigLike {
   exchangePolicy: string | null;
   refundPolicy: string | null;
   warranty: string | null;
+  paymentNumber: string | null;
+  codMessage: string | null;
+  fullMessage: string | null;
   customInstructions: string | null;
 }
 

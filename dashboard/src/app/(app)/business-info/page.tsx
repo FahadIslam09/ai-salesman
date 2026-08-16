@@ -18,6 +18,13 @@ const DEFAULT_REFUND_POLICY =
   "Returned Product যাচাই করার পর Return অনুমোদিত হলে Refund Process করা হবে।";
 const DEFAULT_WARRANTY =
   "কোনো Product-এর ক্ষেত্রে আলাদাভাবে উল্লেখ না থাকলে Warranty দেওয়া হয় না।";
+const DEFAULT_COD_MESSAGE = `আপনার Payment Verify হয়ে গেছে! ✅ আপনার Order Confirm করা হলো।
+খুব শীঘ্রই আমরা প্রোডাক্টটি প্যাক করে Courier-এর মাধ্যমে পাঠিয়ে দেব। ডেলিভারি পেতে সাধারণত [X-Y কার্যদিবস] সময় লাগে।
+পণ্য হাতে পাওয়ার পর বাকি টাকা ({{remaining_amount}} টাকা) Cash দিয়ে পরিশোধ করবেন।
+কোনো প্রশ্ন থাকলে জানাবেন! 😊`;
+const DEFAULT_FULL_MESSAGE = `আপনার Payment Verify হয়ে গেছে! ✅ আপনার Order Confirm করা হলো।
+খুব শীঘ্রই আমরা প্রোডাক্টটি প্যাক করে পাঠিয়ে দেওয়া হবে। ডেলিভারি পেতে সাধারণত [X-Y কার্যদিবস] সময় লাগবে।
+ধন্যবাদ আমাদের সাথে অর্ডার করার জন্য! 😊`;
 
 interface BotConfig {
   useBusinessInfo: boolean;
@@ -33,6 +40,9 @@ interface BotConfig {
   exchangePolicy: string | null;
   refundPolicy: string | null;
   warranty: string | null;
+  paymentNumber: string | null;
+  codMessage: string | null;
+  fullMessage: string | null;
 }
 
 export default function BusinessInfoPage() {
@@ -51,6 +61,9 @@ export default function BusinessInfoPage() {
     exchangePolicy: "",
     refundPolicy: "",
     warranty: "",
+    paymentNumber: "",
+    codMessage: DEFAULT_COD_MESSAGE,
+    fullMessage: DEFAULT_FULL_MESSAGE,
   });
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -77,6 +90,9 @@ export default function BusinessInfoPage() {
             exchangePolicy: c.exchangePolicy ?? "",
             refundPolicy: c.refundPolicy ?? "",
             warranty: c.warranty ?? "",
+            paymentNumber: c.paymentNumber ?? "",
+            codMessage: c.codMessage ?? DEFAULT_COD_MESSAGE,
+            fullMessage: c.fullMessage ?? DEFAULT_FULL_MESSAGE,
           });
         }
         setLoaded(true);
@@ -111,6 +127,9 @@ export default function BusinessInfoPage() {
           exchangePolicy: form.exchangePolicy || null,
           refundPolicy: form.refundPolicy || null,
           warranty: form.warranty || null,
+          paymentNumber: form.paymentNumber || null,
+          codMessage: form.codMessage || null,
+          fullMessage: form.fullMessage || null,
         }),
       });
       setSaved(true);
@@ -199,6 +218,13 @@ export default function BusinessInfoPage() {
               placeholder={DEFAULT_PAYMENT_INFO}
             />
           </Field>
+          <Field label="Payment number (bKash/Nagad)">
+            <Input
+              value={form.paymentNumber}
+              onChange={(e) => setForm({ ...form, paymentNumber: e.target.value })}
+              placeholder="017XXXXXXXX"
+            />
+          </Field>
           <Field label="Delivery information">
             <TextArea
               rows={3}
@@ -240,6 +266,24 @@ export default function BusinessInfoPage() {
               placeholder={DEFAULT_WARRANTY}
             />
           </Field>
+          <p className="pt-1 font-display text-base font-semibold text-ink">Payment verification messages</p>
+          <Field label="Cash on Delivery (COD) message">
+            <TextArea
+              rows={4}
+              value={form.codMessage}
+              onChange={(e) => setForm({ ...form, codMessage: e.target.value })}
+            />
+          </Field>
+          <Field label="Full Payment message">
+            <TextArea
+              rows={4}
+              value={form.fullMessage}
+              onChange={(e) => setForm({ ...form, fullMessage: e.target.value })}
+            />
+          </Field>
+          <p className="text-xs text-mute">
+            Use {"{{remaining_amount}}"} in the COD message to insert the amount the customer still owes on delivery.
+          </p>
           <Field label="Additional business information (optional)">
             <TextArea
               rows={3}

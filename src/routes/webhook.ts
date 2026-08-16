@@ -1,10 +1,10 @@
 // ponytail: signature verification active only when APP_SECRET is set (dev-friendly).
 import { createHmac } from "node:crypto";
 import { Router } from "express";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { env } from "../config/env";
 import { db } from "../db/db";
-import { botConfigs, conversations, customers, followUps, knowledgeRequests, pages } from "../db/schema";
+import { botConfigs, conversations, customers, followUps, knowledgeRequests, messages, orders, pages } from "../db/schema";
 import { ChatService } from "../services/chatService";
 import { decryptToken } from "../services/tokenService";
 import { generateReply, generateReplyWithImages } from "../services/aiService";
@@ -83,6 +83,43 @@ function extractImageRequests(text: string): number[] {
 
 function stripImageMarkers(text: string): string {
   return text.replace(SEND_IMAGES_RE, "").trim();
+}
+
+const ORDER_CONFIRMED_RE = /\[ORDER_CONFIRMED\]/g;
+
+function stripOrderMarker(text: string): string {
+  return text.replace(ORDER_CONFIRMED_RE, "").trim();
+}
+
+function extractJson(text: string): string {
+  const match = text.match(/\{[\s\S]*\}/);
+  return match ? match[0] : text;
+}
+
+async function findLatestScreenshot(conversationId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ imageUrl: messages.imageUrl })
+    .from(messages)
+    .where(and(eq(messages.conversationId, conversationId), isNotNull(messages.imageUrl)))
+    .orderBy(desc(messages.createdAt))
+    .limit(1);
+  return row?.imageUrl ?? null;
+}
+
+async function extractOrderDetails(conversationId: string): Promise<Record<string, any> | null> {
+  const history = await ChatService.getRecentChatHistory(conversationId, 30);
+  const transcript = history
+    .map((m) => `${m.role === "user" ? "Customer" : "Assistant"}: ${m.content}`)
+    .join("\n");
+  const res = await generateReply(
+    `Extract the customer's order details from this conversation. Output ONLY a JSON object (no markdown, no other text) with exactly these keys: customerName, phone, address, productName, sizeVariant, paymentMethod ("cod" or "full"), totalAmount (number), deliveryCharge (number), remainingAmount (number), paymentNumber. Use null for any value you cannot determine. Output ONLY the JSON.`,
+    [{ role: "user", content: transcript }]
+  );
+  try {
+    return JSON.parse(extractJson(res.text));
+  } catch {
+    return null;
+  }
 }
 
 async function handleWebhook(body: any) {
@@ -169,7 +206,7 @@ async function handleMessagingEvents(entry: any) {
         ? `[Customer sent an Image]: ${text}`
         : "[Customer sent an Image]"
       : text ?? "";
-    await ChatService.logMessage(conversation.id, "user", logText);
+    await ChatService.logMessage(conversation.id, "user", logText, attachments?.[0]?.url ?? null);
     await db
       .update(customers)
       .set({ lastActiveAt: new Date() })
@@ -248,7 +285,8 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
 
   const knowledgeQuestions = extractKnowledgeRequests(reply.text);
   const imageRequests = extractImageRequests(reply.text);
-  const cleanText = stripImageMarkers(stripKnowledgeMarkers(reply.text));
+  const orderConfirmed = reply.text.includes("[ORDER_CONFIRMED]");
+  const cleanText = stripOrderMarker(stripImageMarkers(stripKnowledgeMarkers(reply.text)));
 
   if (knowledgeQuestions.length > 0) {
     await db.insert(knowledgeRequests).values(
@@ -300,6 +338,35 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
         .update(conversations)
         .set({ attentionReason: "credit_exhausted" })
         .where(eq(conversations.id, conversation.id));
+    }
+  }
+
+  if (orderConfirmed) {
+    try {
+      const details = await extractOrderDetails(conversation.id);
+      if (details) {
+        const screenshotUrl = await findLatestScreenshot(conversation.id);
+        await db.insert(orders).values({
+          pageId: page.id,
+          customerId: customer.id,
+          conversationId: conversation.id,
+          customerName: details.customerName ?? customer.name ?? null,
+          phone: details.phone ?? null,
+          address: details.address ?? null,
+          productName: details.productName ?? null,
+          sizeVariant: details.sizeVariant ?? null,
+          paymentMethod: details.paymentMethod ?? null,
+          totalAmount: typeof details.totalAmount === "number" ? details.totalAmount : null,
+          deliveryCharge: typeof details.deliveryCharge === "number" ? details.deliveryCharge : null,
+          remainingAmount: typeof details.remainingAmount === "number" ? details.remainingAmount : null,
+          paymentNumber: details.paymentNumber ?? null,
+          screenshotUrl,
+          status: "pending",
+        });
+        emitPageEvent(page.id, "order", { status: "pending" });
+      }
+    } catch (err) {
+      console.error("order extraction failed:", err);
     }
   }
 

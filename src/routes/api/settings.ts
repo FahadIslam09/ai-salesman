@@ -30,6 +30,7 @@ settingsRouter.patch("/:pageId", async (req, res) => {
     "enabled", "useBusinessInfo", "businessName", "businessType", "contactNumber",
     "businessInfo", "orderInfo", "paymentInfo", "deliveryInfo", "additionalInfo",
     "returnPolicy", "exchangePolicy", "refundPolicy", "warranty",
+    "paymentNumber", "codMessage", "fullMessage",
     "tone", "language", "workingHours", "customInstructions",
   ] as const;
   const set: Record<string, unknown> = {};

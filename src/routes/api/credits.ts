@@ -40,17 +40,24 @@ creditsRouter.get("/usage/stats", async (req, res) => {
 
 creditsRouter.get("/usage", async (req, res) => {
   const userId = (req as any).session.user.id;
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const pageSize = Math.min(50, Math.max(1, Number(req.query.pageSize) || 20));
   const conditions = [eq(usageLogs.userId, userId)];
   if (req.query.pageId) conditions.push(eq(usageLogs.pageId, req.query.pageId as string));
   if (req.query.from) conditions.push(gte(usageLogs.createdAt, new Date(req.query.from as string)));
   if (req.query.to) conditions.push(eq(usageLogs.createdAt, new Date(req.query.to as string)));
+  const [totalRow] = await db
+    .select({ n: count() })
+    .from(usageLogs)
+    .where(and(...conditions));
   const rows = await db
     .select()
     .from(usageLogs)
     .where(and(...conditions))
     .orderBy(desc(usageLogs.createdAt))
-    .limit(200);
-  res.json(rows);
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
+  res.json({ rows, total: Number(totalRow.n), page, pageSize });
 });
 
 creditsRouter.get("/packages", (_req, res) => {

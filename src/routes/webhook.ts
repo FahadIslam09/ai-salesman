@@ -91,6 +91,19 @@ function stripOrderMarker(text: string): string {
   return text.replace(ORDER_CONFIRMED_RE, "").trim();
 }
 
+const FOLLOW_UP_RE = /\[FOLLOW_UP:\s*(\d+)\]/i;
+
+function extractFollowUpMinutes(text: string): number | null {
+  const m = FOLLOW_UP_RE.exec(text);
+  if (!m) return null;
+  const minutes = parseInt(m[1], 10);
+  return Number.isFinite(minutes) && minutes > 0 && minutes <= 60 * 24 * 60 ? minutes : null;
+}
+
+function stripFollowUpMarker(text: string): string {
+  return text.replace(/\[FOLLOW_UP:\s*\d+\]/gi, "").trim();
+}
+
 function extractJson(text: string): string {
   const match = text.match(/\{[\s\S]*\}/);
   return match ? match[0] : text;
@@ -337,7 +350,8 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
   const knowledgeQuestions = extractKnowledgeRequests(reply.text);
   const imageRequests = extractImageRequests(reply.text);
   const orderConfirmed = reply.text.includes("[ORDER_CONFIRMED]");
-  const cleanText = stripOrderMarker(stripImageMarkers(stripKnowledgeMarkers(reply.text)));
+  const followUpMinutes = extractFollowUpMinutes(reply.text);
+  const cleanText = stripFollowUpMarker(stripOrderMarker(stripImageMarkers(stripKnowledgeMarkers(reply.text))));
 
   if (knowledgeQuestions.length > 0) {
     await db.insert(knowledgeRequests).values(
@@ -439,6 +453,18 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
     } catch (err) {
       console.error("order extraction failed:", err);
     }
+  }
+
+  if (followUpMinutes != null) {
+    await db.insert(followUps).values({
+      pageId: page.id,
+      customerId: customer.id,
+      conversationId: conversation.id,
+      reason: "customer deferred purchase",
+      scheduledAt: new Date(Date.now() + followUpMinutes * 60 * 1000),
+      status: "scheduled",
+    });
+    emitPageEvent(page.id, "follow_up", { conversationId: conversation.id });
   }
 
   await logUsage({

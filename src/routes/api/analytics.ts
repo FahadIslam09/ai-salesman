@@ -4,16 +4,14 @@ import { db } from "../../db/db";
 import { conversations, customers, messages, sales, usageLogs } from "../../db/schema";
 import { requireAuth } from "../middleware/auth";
 import { assertPageOwnedByUser } from "../middleware/pageAccess";
+import { startOfDayDhaka } from "../../utils/time";
 
 export const analyticsRouter = Router();
 analyticsRouter.use(requireAuth);
 
 function periodStart(period: string): Date {
   const days = period === "week" ? 7 : period === "month" ? 30 : 1;
-  const from = new Date();
-  from.setHours(0, 0, 0, 0);
-  from.setDate(from.getDate() - (days - 1));
-  return from;
+  return startOfDayDhaka(days - 1);
 }
 
 async function requirePage(req: any, res: any): Promise<string | null> {

@@ -73,7 +73,7 @@ async function processOne(fu: typeof followUps.$inferSelect) {
   const systemPrompt = `${basePrompt}${summary ? `\n\nConversation summary so far:\n${summary}` : ""}`;
   const history = conversation ? await ChatService.getRecentChatHistory(conversation.id) : [];
 
-  const followUpPrompt = `${systemPrompt}\n\nIt is time for a follow-up. Write a short, friendly follow-up message to re-engage this customer${fu.reason ? ` (reason: ${fu.reason})` : ""}. Reply with just the message, nothing else.`;
+  const followUpPrompt = `${systemPrompt}\n\nIt is time for a follow-up. The customer previously expressed interest but deferred the purchase. This is a NEW message you are sending now that the scheduled time has arrived — do NOT repeat or copy your earlier confirmation wording (like "আমি মনে করিয়ে দেব" or "নক দেব"). Write a fresh, natural, professional sales follow-up that references the product they were interested in (from the conversation context above) and gently re-engages them, like a skilled salesperson continuing the conversation. Do not be pushy, generic, or robotic.${fu.reason ? ` (reason: ${fu.reason})` : ""} Reply with just the message, nothing else.`;
   const reply = await generateReply(followUpPrompt, history);
   if (!reply.text.trim()) return;
 
@@ -84,7 +84,9 @@ async function processOne(fu: typeof followUps.$inferSelect) {
   await deductCredits(page.userId, 1);
   await db.update(followUps).set({ status: "sent" }).where(eq(followUps.id, fu.id));
   if (conversation) {
-    await ChatService.logMessage(conversation.id, "model", reply.text.trim());
+    // Prefix the logged message so the AI's conversation context knows this
+    // follow-up has already been sent (and must not be re-scheduled).
+    await ChatService.logMessage(conversation.id, "model", `[Follow-up sent]: ${reply.text.trim()}`);
     emitPageEvent(page.id, "message", { conversationId: conversation.id });
   }
   await logUsage({

@@ -5,6 +5,7 @@ import { conversations, customers, followUps, orders, sales } from "../../db/sch
 import { requireAuth } from "../middleware/auth";
 import { assertPageOwnedByUser } from "../middleware/pageAccess";
 import { getBalance } from "../../services/creditService";
+import { startOfTodayDhaka } from "../../utils/time";
 
 export const overviewRouter = Router();
 overviewRouter.use(requireAuth);
@@ -16,8 +17,7 @@ overviewRouter.get("/", async (req, res) => {
     return;
   }
   const userId = (req as any).session.user.id;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = startOfTodayDhaka();
 
   const [conversationsToday] = await db
     .select({ n: count() })

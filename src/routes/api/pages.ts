@@ -31,6 +31,14 @@ pagesRouter.post("/", async (req, res) => {
     return;
   }
   const userId = (req as any).session.user.id;
+
+  // Reject if this Facebook page is already connected to another account.
+  const [existing] = await db.select().from(pages).where(eq(pages.fbPageId, fbPageId)).limit(1);
+  if (existing && existing.userId !== userId) {
+    res.status(403).json({ error: "This Facebook page is already connected to another account." });
+    return;
+  }
+
   const { encrypted, iv } = encryptToken(accessToken);
   const [row] = await db
     .insert(pages)

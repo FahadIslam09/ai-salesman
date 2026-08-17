@@ -1,12 +1,38 @@
 import { Router } from "express";
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, lte } from "drizzle-orm";
 import { db } from "../../db/db";
-import { followUps } from "../../db/schema";
+import { customers, followUps } from "../../db/schema";
 import { requireAuth } from "../middleware/auth";
 import { assertPageOwnedByUser } from "../middleware/pageAccess";
+import { emitPageEvent } from "../../utils/events";
 
 export const followUpsRouter = Router();
 followUpsRouter.use(requireAuth);
+
+followUpsRouter.get("/stats", async (req, res) => {
+  const pageId = req.query.pageId as string;
+  if (!pageId || !(await assertPageOwnedByUser(pageId, (req as any).session.user.id))) {
+    res.status(403).json({ error: "forbidden" });
+    return;
+  }
+  const [scheduled] = await db
+    .select({ n: count() })
+    .from(followUps)
+    .where(and(eq(followUps.pageId, pageId), eq(followUps.status, "scheduled")));
+  const [due] = await db
+    .select({ n: count() })
+    .from(followUps)
+    .where(and(eq(followUps.pageId, pageId), eq(followUps.status, "scheduled"), lte(followUps.scheduledAt, new Date())));
+  const [sent] = await db
+    .select({ n: count() })
+    .from(followUps)
+    .where(and(eq(followUps.pageId, pageId), eq(followUps.status, "sent")));
+  const [completed] = await db
+    .select({ n: count() })
+    .from(followUps)
+    .where(and(eq(followUps.pageId, pageId), eq(followUps.status, "completed")));
+  res.json({ scheduled: scheduled.n, due: due.n, sent: sent.n, completed: completed.n });
+});
 
 followUpsRouter.get("/", async (req, res) => {
   const pageId = req.query.pageId as string;
@@ -17,8 +43,16 @@ followUpsRouter.get("/", async (req, res) => {
   const conditions = [eq(followUps.pageId, pageId)];
   if (req.query.status) conditions.push(eq(followUps.status, req.query.status as string));
   const rows = await db
-    .select()
+    .select({
+      id: followUps.id,
+      customerId: followUps.customerId,
+      customerName: customers.name,
+      reason: followUps.reason,
+      scheduledAt: followUps.scheduledAt,
+      status: followUps.status,
+    })
     .from(followUps)
+    .leftJoin(customers, eq(followUps.customerId, customers.id))
     .where(and(...conditions))
     .orderBy(desc(followUps.scheduledAt))
     .limit(200);
@@ -46,6 +80,7 @@ followUpsRouter.post("/", async (req, res) => {
       status: "scheduled",
     })
     .returning();
+  emitPageEvent(pageId, "follow_up", { id: row.id });
   res.status(201).json(row);
 });
 
@@ -60,5 +95,6 @@ followUpsRouter.patch("/:id", async (req, res) => {
   if (req.body.scheduledAt !== undefined) set.scheduledAt = new Date(req.body.scheduledAt);
   if (req.body.reason !== undefined) set.reason = req.body.reason;
   const [updated] = await db.update(followUps).set(set).where(eq(followUps.id, followUp.id)).returning();
+  emitPageEvent(followUp.pageId, "follow_up", { id: followUp.id });
   res.json(updated);
 });

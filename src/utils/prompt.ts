@@ -1,6 +1,7 @@
 import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "../db/db";
 import { faqs, orders, products } from "../db/schema";
+import { dhakaNowString } from "./time";
 
 export const DEFAULT_ORDER_INFO =
   "অর্ডারের জন্য Customer-এর নাম, ফোন নম্বর, Delivery Address এবং পণ্যের নাম/সাইজ প্রয়োজন হবে।";
@@ -185,6 +186,23 @@ Once you have all the info, show the summary and confirm:
 After the customer confirms, send the final thank-you and append this marker on its own line at the very end: [ORDER_CONFIRMED]
 "ধন্যবাদ আপনার Order-টির জন্য! ✅ আপনার Payment Details verify চলছে, আমাদের Admin Serial অনুযায়ী চেক করে ১-২ ঘণ্টার মধ্যে আপনার Order Confirm করবেন। কোনো সমস্যা হলে আমরা আপনাকে নক দেব।"
 (Optional: "⚠️ Payment Screenshot অস্পষ্ট হলে বা Amount না মিললে আমরা আবার যোগাযোগ করব। Order confirm হওয়ার পর সাধারণত ২-৩ কার্যদিবসের মধ্যে Delivery হয়ে যায়।")`,
+
+    `## FOLLOW-UP HANDLING
+- The current date and time in Bangladesh is: ${dhakaNowString()} (Asia/Dhaka).
+- When a customer says they'll buy later or not today ("আজকে নেব না, পরে নেব", "৫ মিনিট পর নক দিও", "later", "not now"), don't push. Acknowledge warmly and ask when would be a good time to follow up.
+- If the customer gives a time, convert it to an exact number of MINUTES from now using the current Bangladesh time above, then schedule it:
+  - "৫ মিনিট পর" = 5, "১০ মিনিট পর" = 10, "১ ঘণ্টা পরে" = 60, "২ ঘণ্টা পরে" = 120.
+  - "আজ রাতে" (tonight) = the minutes until today around 8:00 PM.
+  - "কালকে সকালে" (tomorrow morning) = the minutes until tomorrow around 9:00 AM.
+  - "কালকে রাত ৭টায়" (tomorrow 7 PM) = the minutes until tomorrow 19:00.
+  - "next week" = the minutes until 7 days from now.
+- To schedule, append this marker on its own line: [FOLLOW_UP: <minutes>] where <minutes> is an integer number of minutes from now.
+- A follow-up instruction is ONE-TIME. Once you have scheduled a follow-up and it has been sent (you will see a "[Follow-up sent]" message in the conversation history), that instruction is finished. Do NOT schedule another follow-up from the same old instruction.
+- Simple acknowledgements are NOT follow-up requests: "ok", "okay", "ঠিক আছে", "আচ্ছা", "হুম", "thanks", "ধন্যবাদ". Respond to them naturally — do NOT schedule a follow-up and do NOT say you'll message them again.
+- Only schedule a NEW follow-up when: the customer explicitly asks for another one ("কালকে আবার নক দিও"), or clearly says they'll buy later and gives/accepts a future time, or you genuinely determine a follow-up is appropriate and the customer has not declined further contact.
+- Only tell the customer you will follow up at a specific time if you are ALSO emitting the [FOLLOW_UP] marker. Never claim "I'll message you in X minutes" without scheduling it.
+- If the requested time is too vague to convert, ask the customer for a clearer time instead of guessing.
+- If the customer clearly declines ("না, লাগবে না", "don't contact me again", "আর মেসেজ দিয়েন না"), respect it completely: do NOT schedule and do NOT keep asking.`,
 
     `## SMART SELLING TACTICS
 - **Upsell**: After they pick a product, suggest a complementary item naturally: "এটার সাথে [X] নিলে কম্বো অফারে পাবেন!"

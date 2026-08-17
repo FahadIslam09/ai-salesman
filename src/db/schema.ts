@@ -6,6 +6,7 @@ import {
   uuid,
   jsonb,
   integer,
+  bigint,
   unique,
   index,
 } from "drizzle-orm/pg-core";
@@ -277,8 +278,8 @@ export const payments = pgTable("payments", {
   provider: text("provider").notNull(), // bkash, manual
   providerTxnId: text("provider_txn_id").notNull().unique(),
   providerPaymentId: text("provider_payment_id"),
-  package: text("package").notNull(), // starter, basic, business, pro, enterprise
-  creditsGranted: integer("credits_granted").notNull(),
+  package: text("package").notNull(), // starter, growth, pro, business, enterprise
+  creditsGranted: bigint("credits_granted", { mode: "number" }).notNull(), // micro-credits
   amount: integer("amount").notNull(),
   currency: text("currency").default("BDT").notNull(),
   status: text("status").default("pending").notNull(), // pending, paid, failed, refunded
@@ -288,9 +289,9 @@ export const payments = pgTable("payments", {
 export const creditBalances = pgTable("credit_balances", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: text("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
-  credits: integer("credits").default(0).notNull(),
-  totalPurchased: integer("total_purchased").default(0).notNull(),
-  totalUsed: integer("total_used").default(0).notNull(),
+  credits: bigint("credits", { mode: "number" }).default(0).notNull(), // micro-credits
+  totalPurchased: bigint("total_purchased", { mode: "number" }).default(0).notNull(),
+  totalUsed: bigint("total_used", { mode: "number" }).default(0).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -301,11 +302,15 @@ export const usageLogs = pgTable(
     userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     pageId: uuid("page_id").notNull().references(() => pages.id, { onDelete: "cascade" }),
     conversationId: uuid("conversation_id").references(() => conversations.id),
-    kind: text("kind").notNull(), // inbox_reply, comment_reply, follow_up
+    kind: text("kind").notNull(), // inbox_reply, comment_reply, follow_up, voice_transcription, summarization, order_extraction
+    provider: text("provider"),
+    model: text("model"),
     tokensIn: integer("tokens_in"),
     tokensOut: integer("tokens_out"),
-    creditsDeducted: integer("credits_deducted"),
-    apiCostPaisa: integer("api_cost_paisa"), // actual API cost in paisa (1 BDT = 100 paisa)
+    apiCostNanoUsd: bigint("api_cost_nano_usd", { mode: "number" }),
+    markupMultiplier: integer("markup_multiplier"),
+    billableCostNanoUsd: bigint("billable_cost_nano_usd", { mode: "number" }),
+    creditsUsed: bigint("credits_used", { mode: "number" }), // micro-credits
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({

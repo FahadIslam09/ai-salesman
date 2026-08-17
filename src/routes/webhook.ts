@@ -11,7 +11,7 @@ import { generateReply, generateReplyWithImages, transcribeAudio } from "../serv
 import { buildPagePrompt, getActiveProducts } from "../utils/prompt";
 import { detectAttention } from "../utils/flags";
 import { downloadAttachment, getPost, getUserProfile, replyToComment, sendImage, sendMessage, sendPrivateReply } from "../services/facebookService";
-import { deductCredits, getBalance, logUsage } from "../services/creditService";
+import { chargeUsage, getBalance } from "../services/creditService";
 import { MessageQueue, type QueueItem } from "../services/queueService";
 import { emitPageEvent } from "../utils/events";
 
@@ -121,7 +121,7 @@ async function findLatestScreenshot(conversationId: string): Promise<string | nu
 
 async function extractOrderDetails(
   conversationId: string
-): Promise<{ details: Record<string, any>; tokensIn: number; tokensOut: number } | null> {
+): Promise<{ details: Record<string, any>; tokensIn: number; tokensOut: number; model: string } | null> {
   const history = await ChatService.getRecentChatHistory(conversationId, 30);
   const transcript = history
     .map((m) => `${m.role === "user" ? "Customer" : "Assistant"}: ${m.content}`)
@@ -132,7 +132,7 @@ async function extractOrderDetails(
   );
   try {
     const details = JSON.parse(extractJson(res.text));
-    return { details, tokensIn: res.tokensIn, tokensOut: res.tokensOut };
+    return { details, tokensIn: res.tokensIn, tokensOut: res.tokensOut, model: res.model };
   } catch {
     return null;
   }
@@ -209,6 +209,7 @@ async function handleMessagingEvents(entry: any) {
     let voiceText = "";
     let voiceTokensIn = 0;
     let voiceTokensOut = 0;
+    let voiceModel = "unknown";
     if (audioAttachments.length > 0) {
       for (const a of audioAttachments) {
         const url = a?.payload?.url;
@@ -222,6 +223,7 @@ async function handleMessagingEvents(entry: any) {
           else console.error("[voice] empty transcript");
           voiceTokensIn += t.tokensIn;
           voiceTokensOut += t.tokensOut;
+          voiceModel = t.model;
         } catch (err: any) {
           console.error("[voice] failed:", err?.response?.data ?? err?.message ?? err);
         }
@@ -242,14 +244,14 @@ async function handleMessagingEvents(entry: any) {
     }
     const conversation = await ChatService.getOrCreateConversation(page.id, customer.id);
     if (voiceTokensIn > 0 || voiceTokensOut > 0) {
-      await logUsage({
+      await chargeUsage({
         userId: page.userId,
         pageId: page.id,
         conversationId: conversation.id,
         kind: "voice_transcription",
+        model: voiceModel,
         tokensIn: voiceTokensIn,
         tokensOut: voiceTokensOut,
-        creditsDeducted: 0,
       });
     }
     const logText = attachments?.length
@@ -302,14 +304,14 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
 
   const summarizeRes = await ChatService.maybeSummarize(conversation.id);
   if (summarizeRes && (summarizeRes.tokensIn > 0 || summarizeRes.tokensOut > 0)) {
-    await logUsage({
+    await chargeUsage({
       userId: page.userId,
       pageId: page.id,
       conversationId: conversation.id,
       kind: "summarization",
+      model: summarizeRes.model,
       tokensIn: summarizeRes.tokensIn,
       tokensOut: summarizeRes.tokensOut,
-      creditsDeducted: 0,
     });
   }
   const summary = summarizeRes?.summary ?? null;
@@ -341,6 +343,7 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
         text: "দুঃখিত, আমি ছবিটি ঠিকমতো দেখতে পাচ্ছি না 😔 আপনি কি আবার পাঠাবেন?",
         tokensIn: 0,
         tokensOut: 0,
+        model: "openai/gpt-5.6-luna",
       };
     }
   } else {
@@ -370,7 +373,15 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
 
   let deducted = false;
   if (cleanText || imageRequests.length > 0) {
-    deducted = await deductCredits(page.userId, 1);
+    deducted = await chargeUsage({
+      userId: page.userId,
+      pageId: page.id,
+      conversationId: conversation.id,
+      kind: "inbox_reply",
+      model: reply.model,
+      tokensIn: reply.tokensIn,
+      tokensOut: reply.tokensOut,
+    });
     if (deducted) {
       try {
         const token = decryptToken(page.encryptedAccessToken, page.tokenIv);
@@ -414,14 +425,14 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
     try {
       const extracted = await extractOrderDetails(conversation.id);
       if (extracted) {
-        await logUsage({
+        await chargeUsage({
           userId: page.userId,
           pageId: page.id,
           conversationId: conversation.id,
           kind: "order_extraction",
+          model: extracted.model,
           tokensIn: extracted.tokensIn,
           tokensOut: extracted.tokensOut,
-          creditsDeducted: 0,
         });
         const details = extracted.details;
         const screenshotUrl = await findLatestScreenshot(conversation.id);
@@ -466,16 +477,6 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
     });
     emitPageEvent(page.id, "follow_up", { conversationId: conversation.id });
   }
-
-  await logUsage({
-    userId: page.userId,
-    pageId: page.id,
-    conversationId: conversation.id,
-    kind: "inbox_reply",
-    tokensIn: reply.tokensIn,
-    tokensOut: reply.tokensOut,
-    creditsDeducted: deducted ? 1 : 0,
-  });
 }
 
 async function handleFeedEvents(entry: any) {
@@ -577,15 +578,14 @@ ${caption ? `Post caption: "${caption}"` : "The post has no caption."} ${postIma
           console.log("[feed] privateMessage empty — nothing sent to inbox");
         }
         await replyToComment(token, commentId, commentReply);
-        await logUsage({
+        await chargeUsage({
           userId: page.userId,
           pageId: page.id,
           kind: "comment_reply",
+          model: privateReply.model,
           tokensIn,
           tokensOut,
-          creditsDeducted: 0,
         });
-        await deductCredits(page.userId, 1);
         emitPageEvent(page.id, "comment_reply", { commentId });
       } catch (err) {
         console.error("comment reply failed:", err);

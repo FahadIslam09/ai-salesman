@@ -140,7 +140,7 @@ export class ChatService {
    */
   static async maybeSummarize(
     conversationId: string
-  ): Promise<{ summary: string; tokensIn: number; tokensOut: number } | null> {
+  ): Promise<{ summary: string; tokensIn: number; tokensOut: number; model: string } | null> {
     const [conversation] = await db
       .select()
       .from(conversations)
@@ -166,7 +166,7 @@ export class ChatService {
     }
 
     if (!overflow || overflow.length === 0) {
-      return conversation.summary ? { summary: conversation.summary, tokensIn: 0, tokensOut: 0 } : null;
+      return conversation.summary ? { summary: conversation.summary, tokensIn: 0, tokensOut: 0, model: "unknown" } : null;
     }
 
     const excerpt = overflow.map((m) => `${m.role}: ${m.content}`).join("\n");
@@ -179,6 +179,6 @@ export class ChatService {
       .update(conversations)
       .set({ summary: combined, summarizedUpto: new Date(overflow[overflow.length - 1].createdAt) })
       .where(eq(conversations.id, conversationId));
-    return { summary: combined, tokensIn: res.tokensIn, tokensOut: res.tokensOut };
+    return { summary: combined, tokensIn: res.tokensIn, tokensOut: res.tokensOut, model: res.model };
   }
 }

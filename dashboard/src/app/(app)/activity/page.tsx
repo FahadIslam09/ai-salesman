@@ -10,7 +10,8 @@ interface Usage {
   kind: string;
   tokensIn: number | null;
   tokensOut: number | null;
-  creditsDeducted: number | null;
+  creditsUsed: number | null;
+  creditsDeducted?: number | null;
   createdAt: string;
 }
 
@@ -92,7 +93,7 @@ export default function ActivityPage() {
         <Stat label="AI calls" value={stats?.calls ?? 0} />
         <Stat label="Tokens in" value={(stats?.tokensIn ?? 0).toLocaleString("en-IN")} />
         <Stat label="Tokens out" value={(stats?.tokensOut ?? 0).toLocaleString("en-IN")} />
-        <Stat label="Credits used" value={stats?.credits ?? 0} />
+        <Stat label="Credits used" value={(stats?.credits ?? 0).toLocaleString("en-IN")} />
       </div>
 
       {loading ? (
@@ -104,7 +105,8 @@ export default function ActivityPage() {
           <Table head={["Action", "Tokens in", "Tokens out", "Credits", "When"]}>
             {rows.map((r) => {
               const meta = kindMeta(r.kind);
-              const credits = r.creditsDeducted != null && r.creditsDeducted !== 0 ? `-${r.creditsDeducted}` : "—";
+              const amount = r.creditsUsed ?? r.creditsDeducted;
+              const credits = amount != null && amount !== 0 ? `-${amount.toLocaleString("en-IN")}` : "—";
               return (
                 <tr key={r.id} className="hover:bg-paper">
                   <td className="px-4 py-3">

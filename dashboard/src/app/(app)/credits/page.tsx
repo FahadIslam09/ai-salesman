@@ -15,7 +15,9 @@ interface CreditPackage {
   id: string;
   name: string;
   priceBdt: number;
-  credits: number;
+  baseCredits: number;
+  bonusCredits: number;
+  totalCredits: number;
 }
 
 interface Payment {
@@ -103,11 +105,18 @@ export default function CreditsPage() {
         <h2 className="mb-3 font-display text-base font-semibold text-ink">Recharge with bKash</h2>
         <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-5">
           {packages.map((pkg) => (
-            <Card key={pkg.id} className="flex flex-col gap-2 p-5">
-              <p className="font-display text-lg font-semibold text-ink">{pkg.name}</p>
-              <p className="font-display text-2xl font-semibold text-leaf">{fmtTaka(pkg.priceBdt)}</p>
-              <p className="text-sm text-mute">{pkg.credits.toLocaleString("en-IN")} credits</p>
-              <Button onClick={() => recharge(pkg)} disabled={busy !== null} className="mt-2">
+            <Card key={pkg.id} className="flex flex-col justify-between p-5">
+              <div>
+                <p className="font-display text-lg font-semibold text-ink">{pkg.name}</p>
+                <p className="mt-1 font-display text-2xl font-semibold text-leaf">{fmtTaka(pkg.priceBdt)}</p>
+                <div className="mt-4 space-y-1 text-sm">
+                  <p className="text-ink">{pkg.baseCredits.toLocaleString("en-IN")} Credits</p>
+                  <p className="font-medium text-leaf">+{pkg.bonusCredits.toLocaleString("en-IN")} Bonus</p>
+                  <div className="my-2 border-t border-line" />
+                  <p className="font-semibold text-ink">Total: {pkg.totalCredits.toLocaleString("en-IN")} Credits</p>
+                </div>
+              </div>
+              <Button onClick={() => recharge(pkg)} disabled={busy !== null} className="mt-5 w-full">
                 {busy === pkg.id ? "Opening bKash…" : "Recharge"}
               </Button>
             </Card>

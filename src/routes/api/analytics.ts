@@ -6,6 +6,8 @@ import { requireAuth } from "../middleware/auth";
 import { assertPageOwnedByUser } from "../middleware/pageAccess";
 import { startOfDayDhaka } from "../../utils/time";
 
+import { microToCredits } from "../../config/rates";
+
 export const analyticsRouter = Router();
 analyticsRouter.use(requireAuth);
 
@@ -68,11 +70,12 @@ analyticsRouter.get("/credits", async (req, res) => {
   if (!pageId) return;
   const from = periodStart((req.query.period as string) ?? "day");
   const rows = await db
-    .select({ creditsDeducted: usageLogs.creditsDeducted })
+    .select({ creditsUsed: usageLogs.creditsUsed })
     .from(usageLogs)
     .where(and(eq(usageLogs.pageId, pageId), gte(usageLogs.createdAt, from)));
+  const totalMicro = rows.reduce((sum, r) => sum + (r.creditsUsed ?? 0), 0);
   res.json({
-    used: rows.reduce((sum, r) => sum + (r.creditsDeducted ?? 0), 0),
+    used: Math.round(microToCredits(totalMicro) * 100) / 100,
     aiCalls: rows.length,
   });
 });

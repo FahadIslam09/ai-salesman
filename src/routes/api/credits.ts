@@ -3,8 +3,9 @@ import { and, count, desc, eq, gte, sum } from "drizzle-orm";
 import { db } from "../../db/db";
 import { payments, usageLogs } from "../../db/schema";
 import { requireAuth } from "../middleware/auth";
-import { addCredits, getBalance, logUsage, lowCreditLevel } from "../../services/creditService";
+import { addCredits, getBalance, getHumanBalance, lowCreditLevel } from "../../services/creditService";
 import { CREDIT_PACKAGES, getPackage } from "../../config/packages";
+import { MICRO_PER_CREDIT, microToCredits } from "../../config/rates";
 import { bkashConfigured, createPayment, executePayment } from "../../services/bkashService";
 import { randomUUID } from "node:crypto";
 
@@ -13,8 +14,9 @@ creditsRouter.use(requireAuth);
 
 creditsRouter.get("/balance", async (req, res) => {
   const userId = (req as any).session.user.id;
-  const balance = await getBalance(userId);
-  res.json({ ...balance, level: lowCreditLevel(balance) });
+  const balance = await getHumanBalance(userId);
+  const rawBalance = await getBalance(userId);
+  res.json({ ...balance, level: lowCreditLevel(rawBalance) });
 });
 
 creditsRouter.get("/usage/stats", async (req, res) => {
@@ -26,15 +28,17 @@ creditsRouter.get("/usage/stats", async (req, res) => {
       calls: count(),
       tokensIn: sum(usageLogs.tokensIn),
       tokensOut: sum(usageLogs.tokensOut),
-      credits: sum(usageLogs.creditsDeducted),
+      credits: sum(usageLogs.creditsUsed),
     })
     .from(usageLogs)
     .where(and(...conditions));
+  const microCredits = Number(row.credits ?? 0);
   res.json({
     calls: Number(row.calls ?? 0),
     tokensIn: Number(row.tokensIn ?? 0),
     tokensOut: Number(row.tokensOut ?? 0),
-    credits: Number(row.credits ?? 0),
+    credits: Math.round(microToCredits(microCredits) * 100) / 100,
+    microCredits,
   });
 });
 
@@ -57,7 +61,12 @@ creditsRouter.get("/usage", async (req, res) => {
     .orderBy(desc(usageLogs.createdAt))
     .limit(pageSize)
     .offset((page - 1) * pageSize);
-  res.json({ rows, total: Number(totalRow.n), page, pageSize });
+  const formattedRows = rows.map((r) => ({
+    ...r,
+    creditsDeducted: r.creditsUsed != null ? Math.round(microToCredits(r.creditsUsed) * 100) / 100 : 0,
+    creditsUsed: r.creditsUsed != null ? Math.round(microToCredits(r.creditsUsed) * 100) / 100 : 0,
+  }));
+  res.json({ rows: formattedRows, total: Number(totalRow.n), page, pageSize });
 });
 
 creditsRouter.get("/packages", (_req, res) => {
@@ -80,7 +89,7 @@ creditsRouter.post("/recharge", async (req, res) => {
         provider: "bkash",
         providerTxnId: payment.paymentID,
         package: pkg.id,
-        creditsGranted: pkg.credits,
+        creditsGranted: pkg.totalCredits * MICRO_PER_CREDIT,
         amount: pkg.priceBdt,
         status: "pending",
       });
@@ -98,7 +107,7 @@ creditsRouter.post("/recharge", async (req, res) => {
       provider: "manual",
       providerTxnId: `M-${randomUUID()}`,
       package: pkg.id,
-      creditsGranted: pkg.credits,
+      creditsGranted: pkg.totalCredits * MICRO_PER_CREDIT,
       amount: pkg.priceBdt,
       status: "pending",
     })
@@ -152,5 +161,9 @@ creditsRouter.get("/history", async (req, res) => {
     .where(eq(payments.userId, userId))
     .orderBy(desc(payments.createdAt))
     .limit(100);
-  res.json(rows);
+  const formattedRows = rows.map((p) => ({
+    ...p,
+    creditsGranted: Math.round(microToCredits(p.creditsGranted)),
+  }));
+  res.json(formattedRows);
 });

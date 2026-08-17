@@ -1,11 +1,19 @@
 import { db } from "../db/db";
 import { creditBalances, usageLogs } from "../db/schema";
 import { and, eq, gte, sql } from "drizzle-orm";
+import { computeBill, microToCredits } from "../config/rates";
 
 export interface Balance {
   credits: number;
   totalPurchased: number;
   totalUsed: number;
+}
+
+export interface HumanBalance {
+  credits: number;
+  totalPurchased: number;
+  totalUsed: number;
+  microCredits: number;
 }
 
 async function ensureBalance(userId: string): Promise<void> {
@@ -19,6 +27,16 @@ export async function getBalance(userId: string): Promise<Balance> {
   await ensureBalance(userId);
   const [row] = await db.select().from(creditBalances).where(eq(creditBalances.userId, userId));
   return { credits: row.credits, totalPurchased: row.totalPurchased, totalUsed: row.totalUsed };
+}
+
+export async function getHumanBalance(userId: string): Promise<HumanBalance> {
+  const b = await getBalance(userId);
+  return {
+    credits: Math.round(microToCredits(b.credits) * 100) / 100,
+    totalPurchased: Math.round(microToCredits(b.totalPurchased) * 100) / 100,
+    totalUsed: Math.round(microToCredits(b.totalUsed) * 100) / 100,
+    microCredits: b.credits,
+  };
 }
 
 /**
@@ -65,4 +83,37 @@ export function lowCreditLevel(balance: Balance): LowCreditLevel {
 
 export async function logUsage(record: typeof usageLogs.$inferInsert): Promise<void> {
   await db.insert(usageLogs).values(record);
+}
+
+/**
+ * Bill an AI call: compute credits from model + tokens, deduct atomically,
+ * and record the usage. Returns true when the deduction succeeded (or the call
+ * was free). Callers that gate a customer send on balance use the result.
+ */
+export async function chargeUsage(opts: {
+  userId: string;
+  pageId: string;
+  conversationId?: string | null;
+  kind: string;
+  model: string;
+  tokensIn: number;
+  tokensOut: number;
+}): Promise<boolean> {
+  const bill = computeBill(opts.model, opts.tokensIn, opts.tokensOut);
+  const ok = bill.creditsUsed > 0 ? await deductCredits(opts.userId, bill.creditsUsed) : true;
+  await logUsage({
+    userId: opts.userId,
+    pageId: opts.pageId,
+    conversationId: opts.conversationId ?? null,
+    kind: opts.kind,
+    provider: bill.provider,
+    model: bill.model,
+    tokensIn: opts.tokensIn,
+    tokensOut: opts.tokensOut,
+    apiCostNanoUsd: bill.apiCostNanoUsd,
+    markupMultiplier: bill.markupMultiplier,
+    billableCostNanoUsd: bill.billableCostNanoUsd,
+    creditsUsed: ok ? bill.creditsUsed : 0,
+  });
+  return ok;
 }

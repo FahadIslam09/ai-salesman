@@ -5,7 +5,7 @@ import { ChatService } from "./chatService";
 import { decryptToken } from "./tokenService";
 import { generateReply } from "./aiService";
 import { buildPagePrompt } from "../utils/prompt";
-import { deductCredits, getBalance, logUsage } from "./creditService";
+import { chargeUsage, getBalance } from "./creditService";
 import { sendMessage } from "./facebookService";
 import { emitPageEvent } from "../utils/events";
 
@@ -59,14 +59,14 @@ async function processOne(fu: typeof followUps.$inferSelect) {
   });
   const summarizeRes = conversation ? await ChatService.maybeSummarize(conversation.id) : null;
   if (summarizeRes && (summarizeRes.tokensIn > 0 || summarizeRes.tokensOut > 0)) {
-    await logUsage({
+    await chargeUsage({
       userId: page.userId,
       pageId: page.id,
       conversationId: conversation!.id,
       kind: "summarization",
+      model: summarizeRes.model,
       tokensIn: summarizeRes.tokensIn,
       tokensOut: summarizeRes.tokensOut,
-      creditsDeducted: 0,
     });
   }
   const summary = summarizeRes?.summary ?? null;
@@ -81,7 +81,6 @@ async function processOne(fu: typeof followUps.$inferSelect) {
   const token = decryptToken(page.encryptedAccessToken, page.tokenIv);
   await sendMessage(token, customer.psid, reply.text.trim());
 
-  await deductCredits(page.userId, 1);
   await db.update(followUps).set({ status: "sent" }).where(eq(followUps.id, fu.id));
   if (conversation) {
     // Prefix the logged message so the AI's conversation context knows this
@@ -89,13 +88,13 @@ async function processOne(fu: typeof followUps.$inferSelect) {
     await ChatService.logMessage(conversation.id, "model", `[Follow-up sent]: ${reply.text.trim()}`);
     emitPageEvent(page.id, "message", { conversationId: conversation.id });
   }
-  await logUsage({
+  await chargeUsage({
     userId: page.userId,
     pageId: page.id,
     conversationId: fu.conversationId,
     kind: "follow_up",
+    model: reply.model,
     tokensIn: reply.tokensIn,
     tokensOut: reply.tokensOut,
-    creditsDeducted: 1,
   });
 }

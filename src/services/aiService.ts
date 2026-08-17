@@ -15,6 +15,7 @@ export interface AiReply {
   text: string;
   tokensIn: number;
   tokensOut: number;
+  model: string;
 }
 
 export interface HistoryMsg {
@@ -55,6 +56,7 @@ export async function generateReply(systemPrompt: string, history: HistoryMsg[])
     text: sanitizeText(res.choices[0]?.message?.content ?? ""),
     tokensIn: res.usage?.prompt_tokens ?? 0,
     tokensOut: res.usage?.completion_tokens ?? 0,
+    model: CHAT_MODEL,
   };
 }
 
@@ -84,6 +86,7 @@ export async function generateReplyWithImages(
     text: sanitizeText(res.choices[0]?.message?.content ?? ""),
     tokensIn: res.usage?.prompt_tokens ?? 0,
     tokensOut: res.usage?.completion_tokens ?? 0,
+    model: CHAT_MODEL,
   };
 }
 
@@ -118,5 +121,6 @@ export async function transcribeAudio(buffer: Buffer, contentType: string): Prom
     text: res.choices[0]?.message?.content?.trim() ?? "",
     tokensIn: res.usage?.prompt_tokens ?? 0,
     tokensOut: res.usage?.completion_tokens ?? 0,
+    model: AUDIO_MODEL,
   };
 }

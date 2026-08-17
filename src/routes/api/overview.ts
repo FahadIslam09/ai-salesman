@@ -4,7 +4,7 @@ import { db } from "../../db/db";
 import { conversations, customers, followUps, orders, sales } from "../../db/schema";
 import { requireAuth } from "../middleware/auth";
 import { assertPageOwnedByUser } from "../middleware/pageAccess";
-import { getBalance } from "../../services/creditService";
+import { getHumanBalance } from "../../services/creditService";
 import { startOfTodayDhaka } from "../../utils/time";
 
 export const overviewRouter = Router();
@@ -55,7 +55,7 @@ overviewRouter.get("/", async (req, res) => {
     .orderBy(desc(conversations.lastMessageAt))
     .limit(20);
 
-  const balance = await getBalance(userId);
+  const balance = await getHumanBalance(userId);
 
   res.json({
     credits: balance,

@@ -218,14 +218,28 @@ export const knowledgeRequests = pgTable("knowledge_requests", {
   answeredAt: timestamp("answered_at", { withTimezone: true }),
 });
 
+export interface FollowUpContext {
+  followUpDelayMinutes?: number;
+  followUpReason?: string;
+  customerIntent?: string;
+  customerDecisionState?: string;
+  relevantProduct?: string;
+  relevantProductId?: string | null;
+  customerLatestMessage?: string;
+  conversationSummary?: string;
+  objectionsOrConcerns?: string;
+  orderStatus?: string | null;
+}
+
 export const followUps = pgTable("follow_ups", {
   id: uuid("id").defaultRandom().primaryKey(),
   pageId: uuid("page_id").notNull().references(() => pages.id, { onDelete: "cascade" }),
   customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
   conversationId: uuid("conversation_id").references(() => conversations.id),
   reason: text("reason"),
+  context: jsonb("context").$type<FollowUpContext>(),
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
-  status: text("status").default("scheduled").notNull(), // scheduled, sent, replied, completed, cancelled
+  status: text("status").default("scheduled").notNull(), // scheduled, sent, replied, completed, cancelled, superseded
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

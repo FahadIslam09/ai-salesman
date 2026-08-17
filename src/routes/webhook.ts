@@ -4,7 +4,7 @@ import { Router } from "express";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { env } from "../config/env";
 import { db } from "../db/db";
-import { botConfigs, conversations, customers, followUps, knowledgeRequests, messages, orders, pages } from "../db/schema";
+import { botConfigs, conversations, customers, followUps, type FollowUpContext, knowledgeRequests, messages, orders, pages } from "../db/schema";
 import { ChatService } from "../services/chatService";
 import { decryptToken } from "../services/tokenService";
 import { generateReply, generateReplyWithImages, transcribeAudio } from "../services/aiService";
@@ -91,17 +91,111 @@ function stripOrderMarker(text: string): string {
   return text.replace(ORDER_CONFIRMED_RE, "").trim();
 }
 
-const FOLLOW_UP_RE = /\[FOLLOW_UP:\s*(\d+)\]/i;
+const FOLLOW_UP_STRUCTURED_RE = /\[FOLLOW_UP:\s*([^\]]+)\]/i;
 
-function extractFollowUpMinutes(text: string): number | null {
-  const m = FOLLOW_UP_RE.exec(text);
+interface ExtractedFollowUp {
+  minutes: number;
+  reason?: string;
+  context: FollowUpContext;
+}
+
+function extractFollowUpData(replyText: string, latestCustomerText?: string): ExtractedFollowUp | null {
+  const m = FOLLOW_UP_STRUCTURED_RE.exec(replyText);
   if (!m) return null;
-  const minutes = parseInt(m[1], 10);
-  return Number.isFinite(minutes) && minutes > 0 && minutes <= 60 * 24 * 60 ? minutes : null;
+  const raw = m[1].trim();
+
+  let minutes: number | null = null;
+  let reason: string | undefined;
+  let product: string | undefined;
+  let intent: string | undefined;
+  let objection: string | undefined;
+
+  // Case 1: JSON format
+  if (raw.startsWith("{") && raw.endsWith("}")) {
+    try {
+      const parsed = JSON.parse(raw);
+      minutes = Number(parsed.minutes ?? parsed.delay);
+      reason = parsed.reason;
+      product = parsed.product;
+      intent = parsed.intent;
+      objection = parsed.objection;
+    } catch {
+      // fallback
+    }
+  }
+
+  // Case 2: Key-value / Pipe format: "60 | reason: ... | product: ..."
+  if (minutes == null && raw.includes("|")) {
+    const parts = raw.split("|").map((p) => p.trim());
+    const firstPartNum = parseInt(parts[0], 10);
+    if (Number.isFinite(firstPartNum)) {
+      minutes = firstPartNum;
+    }
+    for (let i = 1; i < parts.length; i++) {
+      const part = parts[i];
+      const colonIdx = part.indexOf(":");
+      if (colonIdx !== -1) {
+        const key = part.slice(0, colonIdx).trim().toLowerCase();
+        const val = part.slice(colonIdx + 1).trim();
+        if (key === "reason") reason = val;
+        else if (key === "product") product = val;
+        else if (key === "intent") intent = val;
+        else if (key === "objection") objection = val;
+      }
+    }
+  }
+
+  // Case 3: Simple numeric: "60"
+  if (minutes == null) {
+    const num = parseInt(raw, 10);
+    if (Number.isFinite(num)) {
+      minutes = num;
+    }
+  }
+
+  if (minutes == null || minutes <= 0 || minutes > 60 * 24 * 60) return null;
+
+  // Infer objection if customer mentioned price in their latest message
+  const lowerCust = (latestCustomerText || "").toLowerCase();
+  if (!objection || objection === "none") {
+    if (
+      lowerCust.includes("দাম") ||
+      lowerCust.includes("price") ||
+      lowerCust.includes("বেশি") ||
+      lowerCust.includes("expensive") ||
+      lowerCust.includes("discount") ||
+      lowerCust.includes("ছাড়") ||
+      lowerCust.includes("কম")
+    ) {
+      objection = "Price objection / customer asked for discount";
+    }
+  }
+
+  const followUpReason =
+    reason ||
+    (lowerCust.includes("চিন্তা") || lowerCust.includes("think")
+      ? "Customer considering purchase"
+      : "Customer requested later contact");
+  const customerIntent = intent || "Interested in purchasing, requested follow-up";
+  const customerDecisionState = "Interested but undecided";
+
+  return {
+    minutes,
+    reason: followUpReason,
+    context: {
+      followUpDelayMinutes: minutes,
+      followUpReason,
+      customerIntent,
+      customerDecisionState,
+      relevantProduct: product && product.toLowerCase() !== "none" ? product : undefined,
+      customerLatestMessage: latestCustomerText || undefined,
+      objectionsOrConcerns: objection && objection.toLowerCase() !== "none" ? objection : undefined,
+    },
+  };
 }
 
 function stripFollowUpMarker(text: string): string {
-  return text.replace(/\[FOLLOW_UP:\s*\d+\]/gi, "").trim();
+  return text.replace(/\[FOLLOW_UP:\s*[^\]]+\]/gi, "").trim();
 }
 
 function extractJson(text: string): string {
@@ -268,6 +362,22 @@ async function handleMessagingEvents(entry: any) {
       .update(followUps)
       .set({ status: "replied" })
       .where(and(eq(followUps.conversationId, conversation.id), eq(followUps.status, "sent")));
+
+    const lowerIncoming = (combinedText || "").toLowerCase();
+    if (
+      lowerIncoming.includes("লাগবে না") ||
+      lowerIncoming.includes("না লাগবে না") ||
+      lowerIncoming.includes("দরকার নেই") ||
+      lowerIncoming.includes("cancel") ||
+      lowerIncoming.includes("dont contact") ||
+      lowerIncoming.includes("মেসেজ দিয়েন না")
+    ) {
+      await db
+        .update(followUps)
+        .set({ status: "cancelled", reason: "Customer explicitly declined" })
+        .where(and(eq(followUps.conversationId, conversation.id), eq(followUps.status, "scheduled")));
+    }
+
     emitPageEvent(page.id, "message", { conversationId: conversation.id });
 
     if (conversation.handledBy === "human") continue;
@@ -353,7 +463,7 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
   const knowledgeQuestions = extractKnowledgeRequests(reply.text);
   const imageRequests = extractImageRequests(reply.text);
   const orderConfirmed = reply.text.includes("[ORDER_CONFIRMED]");
-  const followUpMinutes = extractFollowUpMinutes(reply.text);
+  const followUpData = extractFollowUpData(reply.text, text);
   const cleanText = stripFollowUpMarker(stripOrderMarker(stripImageMarkers(stripKnowledgeMarkers(reply.text))));
 
   if (knowledgeQuestions.length > 0) {
@@ -422,6 +532,12 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
   }
 
   if (orderConfirmed) {
+    // If order confirmed, cancel any pending scheduled follow-ups
+    await db
+      .update(followUps)
+      .set({ status: "cancelled", reason: "Customer placed order" })
+      .where(and(eq(followUps.conversationId, conversation.id), eq(followUps.status, "scheduled")));
+
     try {
       const extracted = await extractOrderDetails(conversation.id);
       if (extracted) {
@@ -466,13 +582,20 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
     }
   }
 
-  if (followUpMinutes != null) {
+  if (followUpData != null) {
+    // Supersede any older scheduled follow-ups for this conversation
+    await db
+      .update(followUps)
+      .set({ status: "superseded" })
+      .where(and(eq(followUps.conversationId, conversation.id), eq(followUps.status, "scheduled")));
+
     await db.insert(followUps).values({
       pageId: page.id,
       customerId: customer.id,
       conversationId: conversation.id,
-      reason: "customer deferred purchase",
-      scheduledAt: new Date(Date.now() + followUpMinutes * 60 * 1000),
+      reason: followUpData.reason,
+      context: followUpData.context,
+      scheduledAt: new Date(Date.now() + followUpData.minutes * 60 * 1000),
       status: "scheduled",
     });
     emitPageEvent(page.id, "follow_up", { conversationId: conversation.id });

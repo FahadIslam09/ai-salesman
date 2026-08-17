@@ -48,6 +48,7 @@ followUpsRouter.get("/", async (req, res) => {
       customerId: followUps.customerId,
       customerName: customers.name,
       reason: followUps.reason,
+      context: followUps.context,
       scheduledAt: followUps.scheduledAt,
       status: followUps.status,
     })

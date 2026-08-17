@@ -26,21 +26,38 @@ productsRouter.post("/upload", express.text({ type: "text/plain", limit: "10mb" 
 });
 
 productsRouter.get("/", async (req, res) => {
-  const pageId = req.query.pageId as string;
-  if (!pageId || !(await assertPageOwnedByUser(pageId, (req as any).session.user.id))) {
-    res.status(403).json({ error: "forbidden" });
-    return;
+  try {
+    const pageId = req.query.pageId as string;
+    if (!pageId || !(await assertPageOwnedByUser(pageId, (req as any).session.user.id))) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const rows = await db
+      .select()
+      .from(products)
+      .where(and(eq(products.pageId, pageId), eq(products.isActive, true)))
+      .orderBy(desc(products.createdAt));
+    res.json(rows);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to fetch products" });
   }
-  const rows = await db
-    .select()
-    .from(products)
-    .where(and(eq(products.pageId, pageId), eq(products.isActive, true)))
-    .orderBy(desc(products.createdAt));
-  res.json(rows);
+});
+
+productsRouter.get("/:id", async (req, res) => {
+  try {
+    const [product] = await db.select().from(products).where(eq(products.id, req.params.id)).limit(1);
+    if (!product || !(await assertPageOwnedByUser(product.pageId, (req as any).session.user.id))) {
+      res.status(404).json({ error: "not found" });
+      return;
+    }
+    res.json(product);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to fetch product" });
+  }
 });
 
 productsRouter.post("/", async (req, res) => {
-  const { pageId, name, keywords, imageUrl, images, price, description, discount, stockStatus, category, variants, deliveryInfo } = req.body;
+  const { pageId, name, keywords, imageUrl, images, price, description, discount, stockStatus, category, sku, variants, deliveryInfo } = req.body;
   if (!pageId || !name || !keywords) {
     res.status(400).json({ error: "pageId, name, keywords required" });
     return;
@@ -69,6 +86,7 @@ productsRouter.post("/", async (req, res) => {
       discount,
       stockStatus: stockStatus ?? "available",
       category,
+      sku,
       variants,
       deliveryInfo,
     })
@@ -84,7 +102,7 @@ productsRouter.patch("/:id", async (req, res) => {
   }
   const allowed = [
     "name", "keywords", "imageUrl", "images", "price", "description", "discount",
-    "stockStatus", "category", "variants", "deliveryInfo",
+    "stockStatus", "category", "sku", "variants", "deliveryInfo",
   ] as const;
   const set: Record<string, unknown> = {};
   for (const key of allowed) {

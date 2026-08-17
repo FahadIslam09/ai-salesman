@@ -61,3 +61,18 @@ salesRouter.post("/", async (req, res) => {
   emitPageEvent(pageId, "sale", { id: row.id });
   res.status(201).json(row);
 });
+
+salesRouter.delete("/:id", async (req, res) => {
+  try {
+    const [existing] = await db.select().from(sales).where(eq(sales.id, req.params.id)).limit(1);
+    if (!existing || !(await assertPageOwnedByUser(existing.pageId, (req as any).session.user.id))) {
+      res.status(404).json({ error: "not found" });
+      return;
+    }
+    await db.delete(sales).where(eq(sales.id, req.params.id));
+    emitPageEvent(existing.pageId, "sale", { id: existing.id, deleted: true });
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to delete sale" });
+  }
+});

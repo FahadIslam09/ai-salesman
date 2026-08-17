@@ -113,7 +113,7 @@ export function Button({
   className = "",
 }: {
   children: ReactNode;
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   variant?: "primary" | "ghost" | "danger" | "outline";
   disabled?: boolean;
   type?: "button" | "submit";

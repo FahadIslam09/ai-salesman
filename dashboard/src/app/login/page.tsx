@@ -17,6 +17,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -24,8 +25,8 @@ export default function LoginPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email.trim()) {
-      setError("Please enter your email address.");
+    if (!email.trim() || !email.includes("@")) {
+      setError("Please enter a valid email address.");
       return;
     }
     if (!password) {
@@ -44,7 +45,7 @@ export default function LoginPage() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        setError(body.message ?? "Login failed. Please verify your email and password.");
+        setError(body.message ?? "Incorrect email or password. Please try again.");
         return;
       }
       router.push("/overview");
@@ -86,7 +87,7 @@ export default function LoginPage() {
             Welcome back
           </h1>
           <p className="mt-1.5 text-xs text-[#64748B] leading-relaxed max-w-xs">
-            Sign in to manage your AI sales agent and live orders.
+            Sign in to continue to your AI Sales Bot account.
           </p>
         </div>
 
@@ -100,7 +101,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* Social Login (Google) */}
+          {/* Social Sign In (Google) */}
           <button
             type="button"
             onClick={handleGoogleLogin}
@@ -142,7 +143,7 @@ export default function LoginPage() {
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                placeholder="Enter your email address"
                 className="h-11 w-full rounded-xl border border-[#D9E2E8] bg-white px-3.5 text-xs text-[#0F172A] placeholder:text-[#94A3B8] shadow-2xs transition-all focus:border-[#087F5B] focus:outline-none focus:ring-2 focus:ring-[#087F5B]/15"
               />
             </div>
@@ -177,7 +178,30 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Submit Button */}
+            {/* Remember Me & Forgot Password Row */}
+            <div className="flex items-center justify-between text-xs pt-0.5">
+              <label className="flex items-center gap-2 cursor-pointer select-none text-[#475569]">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 rounded-xs border-[#D9E2E8] text-[#087F5B] accent-[#087F5B] focus:ring-0"
+                />
+                <span>Remember me</span>
+              </label>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setError("Password reset link will be sent to your email address.")
+                }
+                className="font-medium text-[#087F5B] hover:underline"
+              >
+                Forgot password?
+              </button>
+            </div>
+
+            {/* Sign In Button */}
             <button
               type="submit"
               disabled={busy || googleBusy}
@@ -194,9 +218,9 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Register Link */}
+          {/* Sign Up Navigation Link */}
           <div className="mt-6 border-t border-[#E5E7EB] pt-4 text-center text-xs text-[#64748B]">
-            New to AI Sales Bot?{" "}
+            Don&apos;t have an account?{" "}
             <Link
               href="/register"
               className="font-semibold text-[#087F5B] hover:underline"
@@ -206,7 +230,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Security Footnote */}
+        {/* Security Trust Footnote */}
         <div className="mt-6 flex items-center justify-center gap-1.5 text-[11px] text-[#94A3B8]">
           <span>Protected with secure authentication</span>
         </div>

@@ -57,6 +57,7 @@ interface BotConfig {
   paymentNumber: string | null;
   codMessage: string | null;
   fullMessage: string | null;
+  priceNegotiation: string | null;
 }
 
 type FieldKey = keyof Omit<BotConfig, "useBusinessInfo">;
@@ -201,6 +202,14 @@ const FIELD_DEFINITIONS: FieldDefinition[] = [
     type: "textarea",
     placeholder: "Return/exchange rules, communication rules, special discount policies…",
   },
+  {
+    key: "priceNegotiation",
+    label: "Price Objection & Negotiation",
+    category: "policy",
+    description: "Custom instructions for how the AI handles price objections, bargaining, and discount requests.",
+    type: "textarea",
+    placeholder: "যদি কাস্টমার দাম কমাতে বলে, বলবে — ভাই এটা আমাদের Best Price, ডিসকাউন্ট দেওয়ার সুযোগ নেই। তবে ২টা নিলে ফ্রি ডেলিভারি পাবেন!",
+  },
 ];
 
 export default function BusinessInfoPage() {
@@ -222,6 +231,7 @@ export default function BusinessInfoPage() {
     paymentNumber: "",
     codMessage: DEFAULT_COD_MESSAGE,
     fullMessage: DEFAULT_FULL_MESSAGE,
+    priceNegotiation: "",
   });
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -255,6 +265,7 @@ export default function BusinessInfoPage() {
             paymentNumber: c.paymentNumber ?? "",
             codMessage: c.codMessage ?? DEFAULT_COD_MESSAGE,
             fullMessage: c.fullMessage ?? DEFAULT_FULL_MESSAGE,
+            priceNegotiation: c.priceNegotiation ?? "",
           });
         }
         setLoaded(true);

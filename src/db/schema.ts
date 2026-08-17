@@ -109,6 +109,7 @@ export const botConfigs = pgTable("bot_configs", {
   tone: text("tone").default("friendly").notNull(),
   language: text("language").default("auto").notNull(),
   workingHours: jsonb("working_hours"),
+  priceNegotiation: text("price_negotiation"),
   customInstructions: text("custom_instructions"),
 });
 

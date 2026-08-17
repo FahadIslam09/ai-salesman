@@ -31,7 +31,7 @@ settingsRouter.patch("/:pageId", async (req, res) => {
     "businessInfo", "orderInfo", "paymentInfo", "deliveryInfo", "additionalInfo",
     "returnPolicy", "exchangePolicy", "refundPolicy", "warranty",
     "paymentNumber", "codMessage", "fullMessage",
-    "tone", "language", "workingHours", "customInstructions",
+    "tone", "language", "workingHours", "customInstructions", "priceNegotiation",
   ] as const;
   const set: Record<string, unknown> = {};
   for (const key of allowed) {

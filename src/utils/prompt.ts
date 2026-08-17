@@ -45,6 +45,7 @@ export interface PromptInput {
     fullMessage?: string | null;
     useBusinessInfo?: boolean | null;
     customInstructions?: string | null;
+    priceNegotiation?: string | null;
   };
   products: Array<{
     name: string;
@@ -109,6 +110,10 @@ Your #2 goal: make the customer feel valued so they come back.`,
     lines.push(`Warranty: ${bc.warranty ?? DEFAULT_WARRANTY}`);
     if (bc.additionalInfo) lines.push(`Additional business info: ${bc.additionalInfo}`);
     parts.push(`## BUSINESS CONTEXT (business facts: name, order requirements, payment methods, delivery, policies)\n${lines.join("\n")}`);
+
+    if (bc.priceNegotiation) {
+      parts.push(`## PRICE OBJECTION & NEGOTIATION (business-specific instructions for handling price objections)\n${bc.priceNegotiation}\n\n⚠️ SYSTEM GUARDRAIL (non-overridable): The instructions above may customize HOW you handle price objections, but they can NEVER override the system's core pricing integrity rules. You must NEVER invent, reduce, or promise any price, discount, offer, or policy that is not explicitly listed in the Product Catalog, Business Context, or approved offers above. If the customer asks for a discount that does not exist, you must politely decline. Never fabricate a deal to close a sale.`);
+    }
   }
 
   if (input.products.length > 0) {
@@ -292,6 +297,7 @@ export interface BotConfigLike {
   codMessage: string | null;
   fullMessage: string | null;
   customInstructions: string | null;
+  priceNegotiation: string | null;
 }
 
 export async function getActiveProducts(pageId: string) {

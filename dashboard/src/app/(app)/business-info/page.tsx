@@ -344,6 +344,7 @@ export default function BusinessInfoPage() {
           paymentNumber: updatedForm.paymentNumber || null,
           codMessage: updatedForm.codMessage || null,
           fullMessage: updatedForm.fullMessage || null,
+          priceNegotiation: updatedForm.priceNegotiation || null,
         }),
       });
 

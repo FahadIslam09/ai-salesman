@@ -102,7 +102,7 @@ export default function CreditsPage() {
         }
       );
       if (res.bkashURL) {
-        window.open(res.bkashURL, "_blank");
+        window.location.href = res.bkashURL;
       } else {
         setError(
           "Payment recorded as manual. Complete payment and it will be verified by the admin."

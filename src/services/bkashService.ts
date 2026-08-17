@@ -14,8 +14,10 @@ export function bkashConfigured(): boolean {
   );
 }
 
-async function getToken(): Promise<string> {
-  if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) return cachedToken.idToken;
+export async function getToken(forceRefresh = false): Promise<string> {
+  if (!forceRefresh && cachedToken && cachedToken.expiresAt > Date.now() + 60_000) {
+    return cachedToken.idToken;
+  }
   const { data } = await axios.post(
     `${env.bkash.baseUrl}/tokenized/checkout/token/grant`,
     { app_key: env.bkash.appKey, app_secret: env.bkash.appSecret },
@@ -27,7 +29,12 @@ async function getToken(): Promise<string> {
       },
     }
   );
-  if (!data?.id_token) throw new Error("bKash token grant failed");
+  if (data?.statusCode && data.statusCode !== "0000" && data.statusCode !== "200") {
+    throw new Error(`bKash token grant failed: ${data.statusMessage || data.statusCode}`);
+  }
+  if (!data?.id_token) {
+    throw new Error(`bKash token grant failed: ${data?.statusMessage || "no id_token in response"}`);
+  }
   cachedToken = {
     idToken: data.id_token,
     expiresAt: Date.now() + Number(data.expires_in ?? 3600) * 1000,
@@ -46,12 +53,13 @@ export async function createPayment(opts: {
   payerReference?: string;
 }): Promise<BkashPayment> {
   const idToken = await getToken();
+  const callbackUrl = env.bkash.callbackUrl || `${env.dashboardUrl}/credits/callback`;
   const { data } = await axios.post(
     `${env.bkash.baseUrl}/tokenized/checkout/create`,
     {
       mode: "0011",
       payerReference: opts.payerReference ?? "1",
-      callbackURL: env.bkash.callbackUrl,
+      callbackURL: callbackUrl,
       amount: String(opts.amount),
       currency: "BDT",
       intent: "sale",
@@ -65,6 +73,9 @@ export async function createPayment(opts: {
       },
     }
   );
+  if (data?.statusCode && data.statusCode !== "0000") {
+    throw new Error(`bKash create failed: ${data.statusMessage || data.statusCode}`);
+  }
   if (!data?.paymentID || !data?.bkashURL) {
     throw new Error(`bKash create failed: ${data?.statusMessage ?? "unknown error"}`);
   }
@@ -74,6 +85,8 @@ export async function createPayment(opts: {
 export interface BkashExecution {
   trxID: string;
   amount: string;
+  paymentID?: string;
+  transactionStatus?: string;
 }
 
 export async function executePayment(paymentID: string): Promise<BkashExecution> {
@@ -92,6 +105,29 @@ export async function executePayment(paymentID: string): Promise<BkashExecution>
   if (data?.statusCode && data.statusCode !== "0000") {
     throw new Error(`bKash execute failed: ${data.statusMessage ?? data.statusCode}`);
   }
-  if (!data?.trxID) throw new Error("bKash execute: no trxID returned");
-  return { trxID: data.trxID, amount: data.amount };
+  if (!data?.trxID) {
+    throw new Error("bKash execute: no trxID returned");
+  }
+  return {
+    trxID: data.trxID,
+    amount: data.amount,
+    paymentID: data.paymentID,
+    transactionStatus: data.transactionStatus,
+  };
+}
+
+export async function queryPayment(paymentID: string): Promise<any> {
+  const idToken = await getToken();
+  const { data } = await axios.post(
+    `${env.bkash.baseUrl}/tokenized/checkout/payment/status`,
+    { paymentID },
+    {
+      headers: {
+        Authorization: idToken,
+        "X-App-Key": env.bkash.appKey,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+  return data;
 }

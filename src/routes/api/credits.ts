@@ -1,12 +1,12 @@
 import { Router } from "express";
-import { and, count, desc, eq, gte, sum } from "drizzle-orm";
+import { and, count, desc, eq, gte, or, sum } from "drizzle-orm";
 import { db } from "../../db/db";
 import { payments, usageLogs } from "../../db/schema";
 import { requireAuth } from "../middleware/auth";
 import { addCredits, getBalance, getHumanBalance, lowCreditLevel } from "../../services/creditService";
 import { CREDIT_PACKAGES, getPackage } from "../../config/packages";
 import { MICRO_PER_CREDIT, microToCredits } from "../../config/rates";
-import { bkashConfigured, createPayment, executePayment } from "../../services/bkashService";
+import { bkashConfigured, createPayment, executePayment, queryPayment } from "../../services/bkashService";
 import { randomUUID } from "node:crypto";
 
 export const creditsRouter = Router();
@@ -122,13 +122,26 @@ creditsRouter.post("/recharge/execute", async (req, res) => {
     res.status(400).json({ error: "paymentID required" });
     return;
   }
-  const [payment] = await db.select().from(payments).where(eq(payments.providerTxnId, paymentID)).limit(1);
-  if (!payment || payment.userId !== userId) {
-    res.status(404).json({ error: "payment not found" });
+  const [payment] = await db
+    .select()
+    .from(payments)
+    .where(
+      and(
+        eq(payments.userId, userId),
+        or(
+          eq(payments.providerTxnId, paymentID),
+          eq(payments.providerPaymentId, paymentID)
+        )
+      )
+    )
+    .limit(1);
+
+  if (!payment) {
+    res.status(404).json({ error: "payment record not found" });
     return;
   }
   if (payment.status === "paid") {
-    res.json({ ok: true, alreadyPaid: true });
+    res.json({ ok: true, alreadyPaid: true, trxID: payment.providerTxnId });
     return;
   }
   let trxID = payment.providerTxnId;
@@ -141,16 +154,31 @@ creditsRouter.post("/recharge/execute", async (req, res) => {
       const execution = await executePayment(paymentID);
       trxID = execution.trxID;
     } catch (err: any) {
-      res.status(400).json({ error: `bKash verification failed: ${err.message}` });
-      return;
+      // Fallback query status check in case payment was already executed by gateway
+      try {
+        const query = await queryPayment(paymentID);
+        if (query?.trxID && (query.transactionStatus === "Completed" || query.transactionStatus === "Initiated")) {
+          trxID = query.trxID;
+        } else {
+          res.status(400).json({ error: `bKash verification failed: ${err.message}` });
+          return;
+        }
+      } catch {
+        res.status(400).json({ error: `bKash verification failed: ${err.message}` });
+        return;
+      }
     }
   }
   await db
     .update(payments)
-    .set({ status: "paid", providerTxnId: trxID, providerPaymentId: payment.provider === "bkash" ? paymentID : null })
+    .set({
+      status: "paid",
+      providerTxnId: trxID,
+      providerPaymentId: payment.provider === "bkash" ? paymentID : null,
+    })
     .where(eq(payments.id, payment.id));
   await addCredits(userId, payment.creditsGranted);
-  res.json({ ok: true });
+  res.json({ ok: true, trxID });
 });
 
 creditsRouter.get("/history", async (req, res) => {

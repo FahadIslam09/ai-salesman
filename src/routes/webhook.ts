@@ -70,7 +70,7 @@ function stripKnowledgeMarkers(text: string): string {
 }
 
 interface ImageRequest {
-  productIndex: number;
+  productRef: string;
   color?: string;
 }
 
@@ -82,7 +82,7 @@ function extractImageRequests(text: string): ImageRequest[] {
     const raw = match[1].trim();
     if (raw.includes("|")) {
       const parts = raw.split("|").map((p) => p.trim());
-      const num = parseInt(parts[0], 10);
+      const ref = parts[0];
       let color: string | undefined;
       for (const part of parts.slice(1)) {
         const colorMatch = part.match(/^color:\s*(.+)$/i);
@@ -90,14 +90,14 @@ function extractImageRequests(text: string): ImageRequest[] {
           color = colorMatch[1].trim();
         }
       }
-      if (!Number.isNaN(num)) {
-        requests.push({ productIndex: num, color });
+      if (ref) {
+        requests.push({ productRef: ref, color });
       }
     } else {
-      for (const part of raw.split(/[,\s]+/)) {
-        const idx = parseInt(part, 10);
-        if (!Number.isNaN(idx)) {
-          requests.push({ productIndex: idx });
+      for (const part of raw.split(/,\s*/)) {
+        const trimmed = part.trim();
+        if (trimmed) {
+          requests.push({ productRef: trimmed });
         }
       }
     }
@@ -583,12 +583,71 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
         }
         if (imageRequests.length > 0) {
           const productRows = await getActiveProducts(page.id);
+          const combinedContext = `${text} ${cleanText}`.toLowerCase();
+
           for (const req of imageRequests) {
-            const product = productRows[req.productIndex - 1];
+            let product: any = null;
+            const ref = req.productRef.trim();
+            const targetColor = req.color?.trim().toLowerCase();
+
+            // 1. Try matching product by exact name or substring name
+            product =
+              productRows.find((p) => p.name.toLowerCase() === ref.toLowerCase()) ||
+              productRows.find(
+                (p) =>
+                  p.name.toLowerCase().includes(ref.toLowerCase()) ||
+                  ref.toLowerCase().includes(p.name.toLowerCase())
+              );
+
+            // 2. If ref is a numeric index, try index lookup
+            if (!product) {
+              const num = parseInt(ref, 10);
+              if (!Number.isNaN(num) && num >= 1 && num <= productRows.length) {
+                product = productRows[num - 1];
+              }
+            }
+
+            // 3. If target color is specified, verify if product actually has this color variant.
+            // If the resolved product does NOT have this color variant, find the product that DOES have it!
+            if (targetColor) {
+              const hasColor = (p: any) => {
+                const variants: any[] = Array.isArray(p.variants) ? p.variants : [];
+                return variants.some((v: any) => {
+                  if (typeof v === "string")
+                    return (
+                      v.toLowerCase() === targetColor ||
+                      targetColor.includes(v.toLowerCase()) ||
+                      v.toLowerCase().includes(targetColor)
+                    );
+                  if (typeof v === "object" && v !== null && v.color) {
+                    const c = String(v.color).toLowerCase();
+                    return c === targetColor || targetColor.includes(c) || c.includes(targetColor);
+                  }
+                  return false;
+                });
+              };
+
+              if (!product || !hasColor(product)) {
+                const betterProduct = productRows.find((p) => hasColor(p));
+                if (betterProduct) {
+                  product = betterProduct;
+                }
+              }
+            }
+
+            // 4. If product still not found, check context text for any product name in catalog
+            if (!product) {
+              for (const p of productRows) {
+                if (combinedContext.includes(p.name.toLowerCase())) {
+                  product = p;
+                  break;
+                }
+              }
+            }
+
             if (!product) continue;
 
             let urlsToSend: string[] = [];
-            const targetColor = req.color?.trim().toLowerCase();
             const productVariants: any[] = Array.isArray(product.variants) ? product.variants : [];
 
             // 1. If explicit color variant is specified in marker
@@ -618,7 +677,6 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
 
             // 2. Fallback: if no color in marker, check if customer or message text mentions a specific color variant
             if (urlsToSend.length === 0 && !targetColor) {
-              const combinedContext = `${text} ${cleanText}`.toLowerCase();
               const banglaColors: Record<string, string[]> = {
                 black: ["কালো", "black"],
                 blue: ["নীল", "blue"],
@@ -630,6 +688,9 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
                 navy: ["নেভি", "navy"],
                 grey: ["ধূসর", "গ্রে", "grey", "gray"],
                 pink: ["গোলাপি", "পিংক", "pink"],
+                stellar: ["stellar", "স্টেলার"],
+                stormy: ["stormy sea", "stormy"],
+                grape: ["grape shake", "grape"],
               };
 
               for (const v of productVariants) {
@@ -643,8 +704,8 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
                   const colorName = String(v.color).toLowerCase();
                   let isMentioned = combinedContext.includes(colorName);
                   if (!isMentioned) {
-                    for (const [eng, terms] of Object.entries(banglaColors)) {
-                      if (colorName.includes(eng) && terms.some((t) => combinedContext.includes(t))) {
+                    for (const [key, terms] of Object.entries(banglaColors)) {
+                      if (colorName.includes(key) && terms.some((t) => combinedContext.includes(t))) {
                         isMentioned = true;
                         break;
                       }
@@ -660,7 +721,7 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
             }
 
             // 3. If no specific color was requested, send ONLY the main product image (not all variant images)
-            if (urlsToSend.length === 0) {
+            if (urlsToSend.length === 0 && !targetColor) {
               if (product.imageUrl) {
                 urlsToSend = [product.imageUrl];
               } else if (product.images?.length) {

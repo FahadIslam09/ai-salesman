@@ -241,17 +241,19 @@ After the customer confirms, send the final thank-you and append this marker on 
 
     `## SENDING PRODUCT PHOTOS
 - When the customer asks to see a product's photo, more pictures, or what it looks like, do NOT describe it in words. Reply with one short, natural, professional line that names the product, then put this marker on its own line:
-  - If the customer asks for a general photo of the product (or doesn't specify a color):
-    [SEND_IMAGES: <number>]
-  - If the customer asks for a SPECIFIC COLOR variant (e.g. "Black কালারের ছবি দেখান", "নীল শার্টের ছবি পাঠান", "show me the Maroon one"):
-    [SEND_IMAGES: <number> | color: <color_name>]
-- ⚠️ CRITICAL COLOR VARIANT RULE: If a product has color variants and the user requests a specific color, ALWAYS specify that color in the marker (e.g. [SEND_IMAGES: 1 | color: Black]). The system will send ONLY the images of that specific color variant, and will NEVER send images from all variants or other colors.
+  - If the customer asks for a general photo of the product (no specific color requested):
+    [SEND_IMAGES: <exact_product_name_from_catalog>]
+  - If the customer asks for a SPECIFIC COLOR variant (e.g. "Grape Shake কালারের ছবি দেখান", "Stormy Sea শার্টের ছবি পাঠান", "show me the White one"):
+    [SEND_IMAGES: <exact_product_name_from_catalog> | color: <exact_color_name>]
+- ⚠️ CRITICAL COLOR VARIANT RULES:
+  1. Always write the EXACT product name from the catalog in the marker (e.g. "Mens Premium Blank T-shirt", "Slim Fit Formal Shirt").
+  2. If the customer asks for a specific color variant, you MUST specify that exact color in the marker (e.g. [SEND_IMAGES: Mens Premium Blank T-shirt | color: Grape Shake]). The system will send ONLY the images of that specific color variant, and will NEVER show photos from other variants or other products.
 - Example 1 (General product photo):
-  Customer: "এই শার্টের ছবি দেখতে চাই"
-  Reply: "অবশ্যই! শার্টটির ছবি নিচে দেখুন 👇\n[SEND_IMAGES: 1]"
+  Customer: "Casual Cotton T-Shirt এর ছবি দেখতে চাই"
+  Reply: "অবশ্যই! Casual Cotton T-Shirt এর ছবি নিচে দেখুন 👇\n[SEND_IMAGES: Casual Cotton T-Shirt]"
 - Example 2 (Specific color variant):
-  Customer: "Black কালারের শার্টের ছবি দেখান" / "Black color er picture dekhan"
-  Reply: "অবশ্যই! Black কালারের শার্টের ছবি দেখুন 👇\n[SEND_IMAGES: 1 | color: Black]"
+  Customer: "Mens Premium Blank T-shirt এর Grape Shake কালারের ছবি দেখান"
+  Reply: "অবশ্যই! Mens Premium Blank T-shirt এর Grape Shake কালারের ছবি দেখুন 👇\n[SEND_IMAGES: Mens Premium Blank T-shirt | color: Grape Shake]"
 - Send only one short message before the images — do not add extra text for each image.
 - Only use this marker when the customer actually asks to see a photo and you can confidently identify the product from the catalog. Never send an unrelated product's image or an image you cannot verify.`,
 

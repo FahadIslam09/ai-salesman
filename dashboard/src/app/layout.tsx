@@ -11,6 +11,9 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "AI Sales Bot — Dashboard",
   description: "AI-powered sales agent for F-commerce",
+  icons: {
+    icon: "/bot-icon.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -117,11 +117,15 @@ function SidebarContent({
     <div className="flex h-full flex-col justify-between">
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Logo area */}
-        <div className="flex items-center justify-between border-b border-[#E2E8F0] px-5 py-4.5">
-          <Link href="/overview" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#087F5B] to-[#066B4C] text-white shadow-[0_2px_8px_rgba(8,127,91,0.25)] ring-1 ring-white/20">
-              <IconSparkles size={20} />
-            </div>
+        <div className="flex items-center justify-between border-b border-[#E2E8F0] px-5 py-4">
+          <Link href="/overview" className="flex items-center gap-3.5">
+            <img
+              src="/bot-icon.png"
+              alt="AI Sales Bot"
+              width={44}
+              height={44}
+              className="h-11 w-11 shrink-0 object-contain"
+            />
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-[15px] font-bold tracking-tight text-[#0F172A]">

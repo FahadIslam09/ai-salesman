@@ -69,10 +69,14 @@ export default function LoginPage() {
       <div className="w-full max-w-[440px]">
         {/* Brand Header */}
         <div className="flex flex-col items-center text-center mb-6">
-          <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#087F5B] text-white shadow-xs transition-transform group-hover:scale-105">
-              <IconSparkles size={22} />
-            </div>
+          <Link href="/" className="flex items-center gap-3 group">
+            <img
+              src="/bot-icon.png"
+              alt="AI Sales Bot"
+              width={44}
+              height={44}
+              className="h-11 w-11 shrink-0 object-contain"
+            />
             <div className="text-left">
               <span className="font-display text-base font-bold tracking-tight text-[#0F172A] block leading-tight">
                 AI Sales Bot

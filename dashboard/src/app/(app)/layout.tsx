@@ -6,6 +6,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { PageProvider, usePage } from "@/components/PageProvider";
 import { Spinner } from "@/lib/ui";
+import { CustomDropdown } from "@/components/CustomDropdown";
 import {
   IconGrid,
   IconInbox,
@@ -311,22 +312,53 @@ function Shell({ children, user }: { children: ReactNode; user: UserProfile | nu
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Facebook Page Selector */}
             {pages.length > 0 && (
-              <div className="relative">
-                <select
-                  value={pageId ?? ""}
-                  onChange={(e) => setPageId(e.target.value)}
-                  className="h-9 cursor-pointer appearance-none rounded-lg border border-line bg-surface pr-8 pl-3 text-xs font-semibold text-ink shadow-2xs transition-colors hover:border-[#D0D7D4] focus:border-leaf focus:outline-none"
-                >
-                  {pages.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-mute">
-                  <IconChevronDown size={14} />
-                </div>
-              </div>
+              <CustomDropdown
+                items={pages.map((p) => ({
+                  id: p.id,
+                  label: p.name,
+                  sublabel: "Connected Page",
+                  badge: p.id === pageId ? "Active" : undefined,
+                  badgeTone: "green",
+                  icon: (
+                    <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#EAF7F2] text-[11px] font-bold text-leaf">
+                      {p.name.charAt(0).toUpperCase()}
+                    </span>
+                  ),
+                }))}
+                value={pageId ?? undefined}
+                onChange={(id) => setPageId(id)}
+                sizeVariant="sm"
+                align="right"
+                renderTrigger={(selected) => (
+                  <button
+                    type="button"
+                    className="flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-[#DCE3E8] bg-white px-3 text-xs font-semibold text-[#172033] shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition-all duration-150 hover:border-[#CBD5E1] hover:bg-[#FAFBFB] focus:border-leaf focus:ring-2 focus:ring-leaf/15 focus:outline-none"
+                  >
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-leaf opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-leaf" />
+                    </span>
+                    <span className="max-w-[120px] truncate font-semibold text-[#172033] sm:max-w-[180px]">
+                      {selected?.label ?? "Select Page"}
+                    </span>
+                    <IconChevronDown size={14} className="text-[#94A3B8]" />
+                  </button>
+                )}
+                renderFooter={(close) => (
+                  <div className="flex items-center justify-between px-2 py-1 text-[11px] text-mute">
+                    <span>
+                      {pages.length} Connected {pages.length === 1 ? "Page" : "Pages"}
+                    </span>
+                    <Link
+                      href="/settings"
+                      onClick={close}
+                      className="font-medium text-leaf hover:underline"
+                    >
+                      Manage
+                    </Link>
+                  </div>
+                )}
+              />
             )}
 
             {/* Date Range Selector */}

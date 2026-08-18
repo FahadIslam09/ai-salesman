@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { API, api, fmtTaka } from "@/lib/api";
 import { usePage } from "@/components/PageProvider";
-import { Button, Card } from "@/lib/ui";
+import { Button, Card, Select } from "@/lib/ui";
 import {
   IconPlus,
   IconSearch,
@@ -578,15 +578,15 @@ export default function NewProductPage() {
                   <label className="mb-1.5 block text-xs font-semibold text-[#334155]">
                     Stock Status
                   </label>
-                  <select
+                  <Select
+                    sizeVariant="md"
                     value={stockStatus}
                     onChange={(e) => setStockStatus(e.target.value)}
-                    className="h-10 w-full rounded-lg border border-[#D9E2E8] bg-white px-3 text-sm text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
                   >
                     <option value="available">In stock</option>
                     <option value="low_stock">Low stock</option>
                     <option value="out_of_stock">Out of stock</option>
-                  </select>
+                  </Select>
                   <p className="mt-1 text-[11px] text-[#64748B]">
                     Select current stock availability
                   </p>
@@ -632,7 +632,10 @@ export default function NewProductPage() {
 
                 {/* Toolbar */}
                 <div className="flex flex-wrap items-center gap-1 rounded-t-lg border border-b-0 border-[#D9E2E8] bg-[#F8FAFC] p-1.5">
-                  <select
+                  <Select
+                    sizeVariant="sm"
+                    wrapperClassName="w-auto"
+                    className="!h-7 !py-0.5 text-xs"
                     onChange={(e) => {
                       if (e.target.value === "h2") {
                         const el = descriptionRef.current;
@@ -641,12 +644,11 @@ export default function NewProductPage() {
                         setDescription(next);
                       }
                     }}
-                    className="h-7 rounded border border-[#D9E2E8] bg-white px-2 text-xs font-medium text-[#172033]"
                   >
                     <option value="p">Paragraph</option>
                     <option value="h2">Heading 2</option>
                     <option value="h3">Heading 3</option>
-                  </select>
+                  </Select>
 
                   <div className="mx-1 h-4 w-[1px] bg-[#D9E2E8]" />
 
@@ -1051,16 +1053,14 @@ export default function NewProductPage() {
                 <label className="mb-1 block text-xs font-semibold text-[#334155]">
                   Status
                 </label>
-                <div className="relative">
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as any)}
-                    className="h-10 w-full rounded-lg border border-[#D9E2E8] bg-white px-3 text-xs font-medium text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
-                  >
-                    <option value="draft">● Draft</option>
-                    <option value="published">● Published</option>
-                  </select>
-                </div>
+                <Select
+                  sizeVariant="md"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as any)}
+                >
+                  <option value="draft">● Draft</option>
+                  <option value="published">● Published</option>
+                </Select>
               </div>
 
               {/* Visibility */}
@@ -1068,14 +1068,14 @@ export default function NewProductPage() {
                 <label className="mb-1 block text-xs font-semibold text-[#334155]">
                   Visibility
                 </label>
-                <select
+                <Select
+                  sizeVariant="md"
                   value={visibility}
                   onChange={(e) => setVisibility(e.target.value)}
-                  className="h-10 w-full rounded-lg border border-[#D9E2E8] bg-white px-3 text-xs font-medium text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
                 >
                   <option value="public">● Public</option>
                   <option value="private">● Private</option>
-                </select>
+                </Select>
               </div>
 
               {/* Publish immediately */}

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import React, { Children, isValidElement, useEffect, useRef, useState, type ReactNode } from "react";
 
 export function Card({
   children,
@@ -150,14 +150,222 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   );
 }
 
-export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
+export interface SelectOption {
+  value: string | number;
+  label: ReactNode;
+  disabled?: boolean;
+}
+
+export interface SelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "onChange"> {
+  sizeVariant?: "sm" | "md" | "lg";
+  icon?: ReactNode;
+  wrapperClassName?: string;
+  options?: SelectOption[];
+  placeholder?: string;
+  onChange?: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  align?: "left" | "right";
+  menuClassName?: string;
+}
+
+export function Select({
+  sizeVariant = "md",
+  icon,
+  wrapperClassName = "",
+  className = "",
+  menuClassName = "",
+  align = "left",
+  disabled,
+  children,
+  options,
+  value,
+  placeholder,
+  name,
+  id,
+  required,
+  onChange,
+  ...props
+}: SelectProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isOpen]);
+
+  // Close on Escape key
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener("keydown", handleKeyDown);
+      return () => document.removeEventListener("keydown", handleKeyDown);
+    }
+  }, [isOpen]);
+
+  // Extract options from options prop OR children <option> elements (recursively handling maps & fragments)
+  const parsedOptions: SelectOption[] = [];
+  if (options && options.length > 0) {
+    parsedOptions.push(...options);
+  } else if (children) {
+    function extract(nodes: ReactNode) {
+      Children.forEach(nodes, (child) => {
+        if (!isValidElement(child)) return;
+        if (child.type === "option") {
+          const p = child.props as any;
+          parsedOptions.push({
+            value: p.value !== undefined ? p.value : p.children,
+            label: p.children,
+            disabled: p.disabled,
+          });
+        } else if ((child.props as any)?.children) {
+          extract((child.props as any).children);
+        }
+      });
+    }
+    extract(children);
+  }
+
+  const currentVal = value !== undefined && value !== null ? String(value) : "";
+  const selectedOption =
+    parsedOptions.find((o) => String(o.value) === currentVal) ??
+    (currentVal === "" ? parsedOptions[0] : null);
+
+  const sizeClasses = {
+    sm: "h-8.5 text-xs px-3 py-1.5 rounded-lg",
+    md: "h-10 text-xs sm:text-sm px-3.5 py-2 rounded-xl",
+    lg: "h-11 text-sm px-4 py-2.5 rounded-xl",
+  }[sizeVariant];
+
+  const iconPadding = icon ? (sizeVariant === "sm" ? "!pl-8" : "!pl-9.5") : "";
+
+  function handleSelect(opt: SelectOption) {
+    if (opt.disabled) return;
+    setIsOpen(false);
+    if (onChange) {
+      const syntheticEvent = {
+        target: { value: String(opt.value), name: name ?? id ?? "" },
+        currentTarget: { value: String(opt.value), name: name ?? id ?? "" },
+        preventDefault: () => {},
+        stopPropagation: () => {},
+      } as unknown as React.ChangeEvent<HTMLSelectElement>;
+      onChange(syntheticEvent);
+    }
+  }
+
   return (
-    <select
-      {...props}
-      className={`rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-leaf focus:outline-none focus:ring-1 focus:ring-leaf ${
-        props.className ?? ""
-      }`}
-    />
+    <div
+      ref={containerRef}
+      className={`group relative inline-flex w-full items-center ${wrapperClassName}`}
+    >
+      {/* Hidden native select for form serialization / accessibility */}
+      <select
+        id={id}
+        name={name}
+        value={value}
+        disabled={disabled}
+        required={required}
+        tabIndex={-1}
+        aria-hidden="true"
+        className="sr-only pointer-events-none"
+        onChange={onChange}
+        {...props}
+      >
+        {children}
+      </select>
+
+      {/* Leading Icon */}
+      {icon && (
+        <div className="pointer-events-none absolute left-3 z-10 flex items-center text-mute transition-colors group-hover:text-ink-secondary group-focus-within:text-leaf">
+          {icon}
+        </div>
+      )}
+
+      {/* Custom Trigger Button */}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex w-full cursor-pointer items-center justify-between border border-[#DCE3E8] bg-white font-medium text-[#172033] shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition-all duration-150 ease-in-out hover:border-[#CBD5E1] hover:bg-[#FAFBFB] focus:border-leaf focus:bg-white focus:outline-none focus:ring-2 focus:ring-leaf/15 disabled:cursor-not-allowed disabled:bg-[#F3F5F4] disabled:text-disabled disabled:opacity-75 ${sizeClasses} ${iconPadding} ${className}`}
+      >
+        <span className="truncate text-left">
+          {selectedOption ? selectedOption.label : (placeholder ?? "Select option")}
+        </span>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={`ml-2 shrink-0 text-[#94A3B8] transition-transform duration-200 ${
+            isOpen ? "rotate-180 text-leaf" : "group-hover:text-ink"
+          }`}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {/* Floating Popover Options Menu */}
+      {isOpen && !disabled && parsedOptions.length > 0 && (
+        <div
+          className={`animate-dropdown absolute top-full z-50 mt-1.5 min-w-full rounded-2xl border border-[#E2E8F0] bg-white/98 p-1.5 shadow-[0_12px_32px_rgba(16,24,40,0.12),0_4px_8px_rgba(16,24,40,0.04)] backdrop-blur-md ${
+            align === "right" ? "right-0" : "left-0"
+          } ${menuClassName}`}
+        >
+          <div className="dropdown-scrollbar max-h-60 space-y-0.5 overflow-y-auto">
+            {parsedOptions.map((opt, idx) => {
+              const isSelected = String(opt.value) === currentVal;
+              return (
+                <button
+                  key={`${opt.value}-${idx}`}
+                  type="button"
+                  disabled={opt.disabled}
+                  onClick={() => handleSelect(opt)}
+                  className={`group/opt flex w-full cursor-pointer items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-medium transition-all duration-150 sm:text-sm ${
+                    opt.disabled
+                      ? "cursor-not-allowed opacity-40"
+                      : isSelected
+                        ? "bg-[#E8F6F0] font-semibold text-[#087F5B]"
+                        : "text-[#334155] hover:bg-[#F1F5F4] hover:text-[#0F172A]"
+                  }`}
+                >
+                  <span className="truncate">{opt.label}</span>
+                  {isSelected && (
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="ml-2 shrink-0 text-[#087F5B]"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

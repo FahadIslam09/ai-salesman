@@ -86,7 +86,12 @@ export default function ConversationDetailPage() {
           <Badge tone={conv.handledBy === "human" ? "blue" : "green"}>
             {conv.handledBy === "human" ? "Human handling" : "AI handling"}
           </Badge>
-          <Select value={conv.status} onChange={(e) => setStatus(e.target.value)}>
+          <Select
+            sizeVariant="sm"
+            wrapperClassName="w-auto min-w-[140px]"
+            value={conv.status}
+            onChange={(e) => setStatus(e.target.value)}
+          >
             {STATUSES.map((s) => (
               <option key={s} value={s}>
                 {s.replaceAll("_", " ")}

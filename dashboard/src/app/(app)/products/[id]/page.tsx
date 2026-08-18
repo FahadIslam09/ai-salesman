@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { API, api, fmtTaka } from "@/lib/api";
 import { usePage } from "@/components/PageProvider";
-import { Button, Card, Spinner } from "@/lib/ui";
+import { Button, Card, Select, Spinner } from "@/lib/ui";
 import {
   IconPlus,
   IconSearch,
@@ -559,15 +559,15 @@ export default function EditProductPage() {
                   <label className="mb-1.5 block text-xs font-semibold text-[#334155]">
                     Stock Status
                   </label>
-                  <select
+                  <Select
+                    sizeVariant="md"
                     value={stockStatus}
                     onChange={(e) => setStockStatus(e.target.value)}
-                    className="h-10 w-full rounded-lg border border-[#D9E2E8] bg-white px-3 text-sm text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
                   >
                     <option value="available">In stock</option>
                     <option value="low_stock">Low stock</option>
                     <option value="out_of_stock">Out of stock</option>
-                  </select>
+                  </Select>
                 </div>
 
                 <div>
@@ -864,28 +864,28 @@ export default function EditProductPage() {
                 <label className="mb-1 block text-xs font-semibold text-[#334155]">
                   Status
                 </label>
-                <select
+                <Select
+                  sizeVariant="md"
                   value={status}
                   onChange={(e) => setStatus(e.target.value as any)}
-                  className="h-10 w-full rounded-lg border border-[#D9E2E8] bg-white px-3 text-xs font-medium text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
                 >
                   <option value="draft">● Draft</option>
                   <option value="published">● Published</option>
-                </select>
+                </Select>
               </div>
 
               <div>
                 <label className="mb-1 block text-xs font-semibold text-[#334155]">
                   Visibility
                 </label>
-                <select
+                <Select
+                  sizeVariant="md"
                   value={visibility}
                   onChange={(e) => setVisibility(e.target.value)}
-                  className="h-10 w-full rounded-lg border border-[#D9E2E8] bg-white px-3 text-xs font-medium text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
                 >
                   <option value="public">● Public</option>
                   <option value="private">● Private</option>
-                </select>
+                </Select>
               </div>
             </div>
           </Card>

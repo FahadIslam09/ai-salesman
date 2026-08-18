@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { API, api, timeAgo } from "@/lib/api";
 import { usePage } from "@/components/PageProvider";
-import { Badge, Button, Card, Spinner } from "@/lib/ui";
+import { Badge, Button, Card, Select, Spinner } from "@/lib/ui";
 import {
   IconSearch,
   IconFilter,
@@ -765,10 +765,11 @@ export default function ActivityPage() {
               </div>
             </div>
 
-            <select
+            <Select
+              sizeVariant="sm"
               value={filterKind}
               onChange={(e) => setFilterKind(e.target.value)}
-              className="h-8 rounded-lg border border-[#D9E2E8] bg-white px-2.5 text-xs text-[#172033] focus:border-[#087F5B] focus:outline-none"
+              wrapperClassName="w-auto min-w-[150px]"
             >
               <option value="all">All Actions</option>
               <option value="inbox_reply">Inbox Reply</option>
@@ -776,7 +777,7 @@ export default function ActivityPage() {
               <option value="order_extraction">Order Extraction</option>
               <option value="follow_up">Follow-up</option>
               <option value="voice_transcription">Voice Transcription</option>
-            </select>
+            </Select>
           </div>
         </div>
 
@@ -915,18 +916,19 @@ export default function ActivityPage() {
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1.5">
                 <span>Show</span>
-                <select
+                <Select
+                  sizeVariant="sm"
                   value={pageSize}
                   onChange={(e) => {
                     setPageSize(Number(e.target.value));
                     setPage(1);
                   }}
-                  className="h-8 rounded-lg border border-[#D9E2E8] bg-white px-2 text-xs text-[#172033] focus:outline-none"
+                  wrapperClassName="w-auto min-w-[70px]"
                 >
                   <option value={10}>10</option>
                   <option value={20}>20</option>
                   <option value={50}>50</option>
-                </select>
+                </Select>
                 <span>per page</span>
               </div>
 

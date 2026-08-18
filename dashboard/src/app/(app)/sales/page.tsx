@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { API, api, fmtTaka, timeAgo } from "@/lib/api";
 import { usePage } from "@/components/PageProvider";
-import { Badge, Button, Card, Spinner } from "@/lib/ui";
+import { Badge, Button, Card, Select, Spinner } from "@/lib/ui";
 import {
   IconPlus,
   IconSearch,
@@ -536,17 +536,17 @@ export default function SalesPage() {
             <label className="mb-1 block text-[11px] font-semibold text-[#64748B]">
               Filter by Source
             </label>
-            <select
+            <Select
+              sizeVariant="sm"
               value={filterSource}
               onChange={(e) => setFilterSource(e.target.value)}
-              className="h-8 w-full rounded-lg border border-[#D9E2E8] bg-white px-2.5 text-xs text-[#172033] focus:border-[#087F5B] focus:outline-none"
             >
               <option value="all">All Sources</option>
               <option value="inbox">AI Chat</option>
               <option value="direct">Manual</option>
               <option value="follow_up">Follow-up</option>
               <option value="comment">Other</option>
-            </select>
+            </Select>
           </div>
 
           <div className="flex-1">
@@ -559,7 +559,7 @@ export default function SalesPage() {
                 placeholder="Search sales..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-8 w-full rounded-lg border border-[#D9E2E8] bg-white pr-7 pl-2.5 text-xs text-[#172033] placeholder:text-[#94A3B8] focus:border-[#087F5B] focus:outline-none"
+                className="h-8.5 w-full rounded-lg border border-[#DCE3E8] bg-white pr-7 pl-2.5 text-xs text-[#172033] placeholder:text-[#94A3B8] shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition-all hover:border-[#CBD5E1] focus:border-leaf focus:outline-none focus:ring-2 focus:ring-leaf/15"
               />
               <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[#94A3B8]">
                 <IconSearch size={13} />
@@ -574,7 +574,7 @@ export default function SalesPage() {
                 setFilterSource("all");
                 setSearchQuery("");
               }}
-              className="h-8 px-3 text-xs text-[#64748B]"
+              className="h-8.5 px-3 text-xs text-[#64748B]"
             >
               Reset
             </Button>
@@ -590,15 +590,16 @@ export default function SalesPage() {
             <h2 className="text-base font-semibold text-[#172033]">
               Revenue Trend
             </h2>
-            <select
+            <Select
+              sizeVariant="sm"
               value={metricSelector}
               onChange={(e) => setMetricSelector(e.target.value as any)}
-              className="h-8 rounded-lg border border-[#D9E2E8] bg-white px-2.5 text-xs font-semibold text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
+              wrapperClassName="w-auto min-w-[150px]"
             >
               <option value="revenue">Revenue</option>
               <option value="orders">Orders</option>
               <option value="aov">Average Order Value</option>
-            </select>
+            </Select>
           </div>
 
           {/* SVG Line Chart */}
@@ -1029,18 +1030,19 @@ export default function SalesPage() {
           <div className="flex flex-col items-center justify-between gap-3 border-t border-[#E5E7EB] p-4 text-xs text-[#64748B] sm:flex-row">
             <div className="flex items-center gap-2">
               <span>Show</span>
-              <select
+              <Select
+                sizeVariant="sm"
                 value={pageSize}
                 onChange={(e) => {
                   setPageSize(Number(e.target.value));
                   setCurrentPage(1);
                 }}
-                className="h-8 rounded-lg border border-[#D9E2E8] bg-white px-2 text-xs text-[#172033] focus:outline-none"
+                wrapperClassName="w-auto min-w-[70px]"
               >
                 <option value={10}>10</option>
                 <option value={25}>25</option>
                 <option value={50}>50</option>
-              </select>
+              </Select>
               <span>entries</span>
             </div>
 
@@ -1099,11 +1101,11 @@ export default function SalesPage() {
                 <label className="mb-1 block text-xs font-semibold text-[#334155]">
                   Customer <span className="text-danger">*</span>
                 </label>
-                <select
+                <Select
                   required
+                  sizeVariant="md"
                   value={form.customerId}
                   onChange={(e) => setForm({ ...form, customerId: e.target.value })}
-                  className="h-10 w-full rounded-lg border border-[#D9E2E8] bg-white px-3 text-xs text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
                 >
                   <option value="">Select customer…</option>
                   {customers.map((c) => (
@@ -1111,7 +1113,7 @@ export default function SalesPage() {
                       {c.name ? `${c.name} (${c.id.slice(0, 8)})` : `Customer ${c.id.slice(0, 8)}`}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               {/* Product */}
@@ -1119,10 +1121,10 @@ export default function SalesPage() {
                 <label className="mb-1 block text-xs font-semibold text-[#334155]">
                   Product (Optional)
                 </label>
-                <select
+                <Select
+                  sizeVariant="md"
                   value={form.productId}
                   onChange={(e) => handleProductSelect(e.target.value)}
-                  className="h-10 w-full rounded-lg border border-[#D9E2E8] bg-white px-3 text-xs text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
                 >
                   <option value="">None / Custom Item</option>
                   {products.map((p) => (
@@ -1130,7 +1132,7 @@ export default function SalesPage() {
                       {p.name} {p.price ? `(৳${p.price})` : ""}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               {/* Quantity & Amount */}
@@ -1144,7 +1146,7 @@ export default function SalesPage() {
                     min="1"
                     value={form.quantity}
                     onChange={(e) => setForm({ ...form, quantity: e.target.value })}
-                    className="h-10 w-full rounded-lg border border-[#D9E2E8] bg-white px-3 text-xs text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
+                    className="h-10 w-full rounded-xl border border-[#DCE3E8] bg-white px-3 text-xs text-[#172033] shadow-[0_1px_2px_rgba(16,24,40,0.04)] focus:border-leaf focus:outline-none focus:ring-2 focus:ring-leaf/15"
                   />
                 </div>
 
@@ -1163,7 +1165,7 @@ export default function SalesPage() {
                       placeholder="1790"
                       value={form.amount}
                       onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                      className="h-10 w-full rounded-lg border border-[#D9E2E8] bg-white pr-3 pl-7 text-xs font-semibold text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
+                      className="h-10 w-full rounded-xl border border-[#DCE3E8] bg-white pr-3 pl-7 text-xs font-semibold text-[#172033] shadow-[0_1px_2px_rgba(16,24,40,0.04)] focus:border-leaf focus:outline-none focus:ring-2 focus:ring-leaf/15"
                     />
                   </div>
                 </div>
@@ -1175,31 +1177,31 @@ export default function SalesPage() {
                   <label className="mb-1 block text-xs font-semibold text-[#334155]">
                     Source
                   </label>
-                  <select
+                  <Select
+                    sizeVariant="md"
                     value={form.source}
                     onChange={(e) => setForm({ ...form, source: e.target.value })}
-                    className="h-10 w-full rounded-lg border border-[#D9E2E8] bg-white px-3 text-xs text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
                   >
                     {SOURCES.map((s) => (
                       <option key={s.value} value={s.value}>
                         {s.label}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
 
                 <div>
                   <label className="mb-1 block text-xs font-semibold text-[#334155]">
                     Assisted By
                   </label>
-                  <select
+                  <Select
+                    sizeVariant="md"
                     value={form.aiAssisted}
                     onChange={(e) => setForm({ ...form, aiAssisted: e.target.value })}
-                    className="h-10 w-full rounded-lg border border-[#D9E2E8] bg-white px-3 text-xs text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
                   >
                     <option value="true">AI Assistant</option>
                     <option value="false">Human Agent</option>
-                  </select>
+                  </Select>
                 </div>
               </div>
 

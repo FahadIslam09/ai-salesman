@@ -38,7 +38,12 @@ export default function AnalyticsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <p className="text-sm text-mute">Business and AI performance over time</p>
-        <Select value={period} onChange={(e) => setPeriod(e.target.value)}>
+        <Select
+          sizeVariant="sm"
+          wrapperClassName="w-auto min-w-[150px]"
+          value={period}
+          onChange={(e) => setPeriod(e.target.value)}
+        >
           {PERIODS.map((p) => (
             <option key={p.value} value={p.value}>
               {p.label}

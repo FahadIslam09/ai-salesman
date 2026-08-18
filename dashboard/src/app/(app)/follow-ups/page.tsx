@@ -116,7 +116,12 @@ export default function FollowUpsPage() {
       </div>
 
       <div className="flex gap-3">
-        <Select value={status} onChange={(e) => setStatusFilter(e.target.value)} className="max-w-[180px]">
+        <Select
+          sizeVariant="md"
+          value={status}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          wrapperClassName="max-w-[180px]"
+        >
           <option value="">All statuses</option>
           {STATUSES.map((s) => (
             <option key={s} value={s}>

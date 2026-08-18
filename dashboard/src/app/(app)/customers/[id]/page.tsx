@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { api, fmtTaka, timeAgo } from "@/lib/api";
-import { Badge, Button, Card, Field, Input, Spinner, TextArea, statusTone } from "@/lib/ui";
+import { Badge, Button, Card, Field, Input, Select, Spinner, TextArea, statusTone } from "@/lib/ui";
 
 interface CustomerDetail {
   id: string;
@@ -63,17 +63,17 @@ export default function CustomerDetailPage() {
         </div>
         <div className="space-y-3">
           <Field label="Status">
-            <select
+            <Select
+              sizeVariant="md"
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink"
             >
               {["new", "interested", "negotiating", "purchased", "not_interested"].map((s) => (
                 <option key={s} value={s}>
                   {s.replaceAll("_", " ")}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
           <Field label="Tags (comma separated)">
             <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="VIP, Hot Lead" />

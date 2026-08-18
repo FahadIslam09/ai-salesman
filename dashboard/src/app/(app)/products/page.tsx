@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, fmtTaka } from "@/lib/api";
 import { usePage } from "@/components/PageProvider";
-import { Button, Card, EmptyState, Skeleton } from "@/lib/ui";
+import { Button, Card, EmptyState, Select, Skeleton } from "@/lib/ui";
 import {
   IconPlus,
   IconSearch,
@@ -550,22 +550,23 @@ export default function ProductsPage() {
             <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
               {/* Bulk actions dropdown */}
               <div className="flex items-center gap-1.5">
-                <select
+                <Select
+                  sizeVariant="sm"
                   value={bulkAction}
                   onChange={(e) => setBulkAction(e.target.value)}
-                  className="h-10 cursor-pointer rounded-lg border border-[#DCE3E8] bg-white px-3 text-xs font-medium text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
+                  wrapperClassName="w-auto min-w-[140px]"
                 >
                   <option value="">Bulk actions</option>
                   <option value="publish">Mark Published / In Stock</option>
                   <option value="draft">Move to Draft</option>
                   <option value="out_of_stock">Mark Out of Stock</option>
                   <option value="delete">Delete permanently</option>
-                </select>
+                </Select>
                 <Button
                   variant="ghost"
                   disabled={!bulkAction || selectedIds.length === 0 || busy}
                   onClick={handleApplyBulk}
-                  className="h-10 border-[#DCE3E8] bg-white px-3 text-xs font-semibold text-[#172033] hover:bg-[#F8FAFC]"
+                  className="h-8.5 border-[#DCE3E8] bg-white px-3 text-xs font-semibold text-[#172033] hover:bg-[#F8FAFC]"
                 >
                   Apply
                 </Button>
@@ -574,13 +575,14 @@ export default function ProductsPage() {
               {/* Desktop Filters: Category, Stock, Status */}
               <div className="hidden items-center gap-2 sm:flex">
                 {/* Category Select */}
-                <select
+                <Select
+                  sizeVariant="sm"
                   value={categoryFilter}
                   onChange={(e) => {
                     setCategoryFilter(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="h-10 cursor-pointer rounded-lg border border-[#DCE3E8] bg-white px-3 text-xs font-medium text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
+                  wrapperClassName="w-auto min-w-[145px]"
                 >
                   <option value="all">Select category</option>
                   {categories.map((c) => (
@@ -588,37 +590,39 @@ export default function ProductsPage() {
                       {c}
                     </option>
                   ))}
-                </select>
+                </Select>
 
                 {/* Stock Select */}
-                <select
+                <Select
+                  sizeVariant="sm"
                   value={stockFilter}
                   onChange={(e) => {
                     setStockFilter(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="h-10 cursor-pointer rounded-lg border border-[#DCE3E8] bg-white px-3 text-xs font-medium text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
+                  wrapperClassName="w-auto min-w-[140px]"
                 >
                   <option value="all">Filter by stock</option>
                   <option value="available">In stock</option>
                   <option value="low_stock">Low stock</option>
                   <option value="out_of_stock">Out of stock</option>
-                </select>
+                </Select>
 
                 {/* Status Select */}
-                <select
+                <Select
+                  sizeVariant="sm"
                   value={statusFilter}
                   onChange={(e) => {
                     setStatusFilter(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="h-10 cursor-pointer rounded-lg border border-[#DCE3E8] bg-white px-3 text-xs font-medium text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
+                  wrapperClassName="w-auto min-w-[140px]"
                 >
                   <option value="all">Filter by status</option>
                   <option value="published">Published</option>
                   <option value="draft">Draft</option>
                   <option value="trash">Trash</option>
-                </select>
+                </Select>
 
                 {/* Reset / Filter Button */}
                 {(categoryFilter !== "all" || stockFilter !== "all" || statusFilter !== "all") && (
@@ -1055,22 +1059,23 @@ export default function ProductsPage() {
             <div className="flex flex-col gap-3 border-t border-[#E5E7EB] p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
               {/* Bottom Left: Secondary Bulk actions */}
               <div className="hidden items-center gap-1.5 sm:flex">
-                <select
+                <Select
+                  sizeVariant="sm"
                   value={bulkAction}
                   onChange={(e) => setBulkAction(e.target.value)}
-                  className="h-9 cursor-pointer rounded-lg border border-[#DCE3E8] bg-white px-2.5 text-xs font-medium text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
+                  wrapperClassName="w-auto min-w-[140px]"
                 >
                   <option value="">Bulk actions</option>
                   <option value="publish">Mark Published</option>
                   <option value="draft">Move to Draft</option>
                   <option value="out_of_stock">Mark Out of Stock</option>
                   <option value="delete">Delete permanently</option>
-                </select>
+                </Select>
                 <Button
                   variant="ghost"
                   disabled={!bulkAction || selectedIds.length === 0 || busy}
                   onClick={handleApplyBulk}
-                  className="h-9 border-[#DCE3E8] bg-white px-3 text-xs font-semibold text-[#172033] hover:bg-[#F8FAFC]"
+                  className="h-8.5 border-[#DCE3E8] bg-white px-3 text-xs font-semibold text-[#172033] hover:bg-[#F8FAFC]"
                 >
                   Apply
                 </Button>
@@ -1193,10 +1198,10 @@ export default function ProductsPage() {
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#64748B]">
                   Category
                 </label>
-                <select
+                <Select
+                  sizeVariant="md"
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="h-10 w-full rounded-lg border border-[#DCE3E8] bg-white px-3 text-xs text-[#172033]"
                 >
                   <option value="all">All categories</option>
                   {categories.map((c) => (
@@ -1204,39 +1209,39 @@ export default function ProductsPage() {
                       {c}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#64748B]">
                   Stock Status
                 </label>
-                <select
+                <Select
+                  sizeVariant="md"
                   value={stockFilter}
                   onChange={(e) => setStockFilter(e.target.value)}
-                  className="h-10 w-full rounded-lg border border-[#DCE3E8] bg-white px-3 text-xs text-[#172033]"
                 >
                   <option value="all">All stock statuses</option>
                   <option value="available">In stock</option>
                   <option value="low_stock">Low stock</option>
                   <option value="out_of_stock">Out of stock</option>
-                </select>
+                </Select>
               </div>
 
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-[#64748B]">
                   Product Status
                 </label>
-                <select
+                <Select
+                  sizeVariant="md"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="h-10 w-full rounded-lg border border-[#DCE3E8] bg-white px-3 text-xs text-[#172033]"
                 >
                   <option value="all">All statuses</option>
                   <option value="published">Published</option>
                   <option value="draft">Draft</option>
                   <option value="trash">Trash</option>
-                </select>
+                </Select>
               </div>
             </div>
 

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { API, api, fmtTaka, timeAgo } from "@/lib/api";
 import { usePage } from "@/components/PageProvider";
-import { Badge, Button, Card, EmptyState, Spinner } from "@/lib/ui";
+import { Badge, Button, Card, EmptyState, Select, Spinner } from "@/lib/ui";
 import {
   IconSearch,
   IconFilter,
@@ -354,23 +354,24 @@ export default function OrdersPage() {
         {/* Left Filters: Payment Method & Date */}
         <div className="flex flex-wrap items-center gap-2.5">
           {/* Payment Method Dropdown */}
-          <select
+          <Select
+            sizeVariant="sm"
             value={paymentFilter}
             onChange={(e) => {
               setPaymentFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="h-9 rounded-lg border border-[#D9E2E8] bg-white px-3 text-xs font-medium text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
+            wrapperClassName="w-auto min-w-[160px]"
           >
             <option value="all">All payment methods</option>
             <option value="cod">Cash on Delivery</option>
             <option value="bkash">bKash</option>
             <option value="nagad">Nagad</option>
             <option value="full">Full Payment</option>
-          </select>
+          </Select>
 
           {/* Date Range Selector Display */}
-          <div className="flex h-9 items-center gap-1.5 rounded-lg border border-[#D9E2E8] bg-white px-3 text-xs font-medium text-[#334155] shadow-2xs">
+          <div className="flex h-8.5 items-center gap-1.5 rounded-lg border border-[#DCE3E8] bg-white px-3 text-xs font-medium text-[#334155] shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
             <span>Date range</span>
             <IconCalendar size={14} className="text-[#64748B]" />
           </div>
@@ -388,7 +389,7 @@ export default function OrdersPage() {
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              className="h-9 w-full rounded-lg border border-[#D9E2E8] bg-white pr-8 pl-3 text-xs text-[#172033] placeholder:text-[#94A3B8] shadow-2xs focus:border-[#087F5B] focus:outline-none"
+              className="h-8.5 w-full rounded-lg border border-[#DCE3E8] bg-white pr-8 pl-3 text-xs text-[#172033] placeholder:text-[#94A3B8] shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition-all hover:border-[#CBD5E1] focus:border-leaf focus:outline-none focus:ring-2 focus:ring-leaf/15"
             />
             <div className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-[#94A3B8]">
               <IconSearch size={14} />
@@ -398,7 +399,7 @@ export default function OrdersPage() {
           <Button
             variant="ghost"
             onClick={() => setShowFilterDrawer(!showFilterDrawer)}
-            className="h-9 border-[#D9E2E8] bg-white px-3 text-xs font-semibold text-[#172033]"
+            className="h-8.5 border-[#DCE3E8] bg-white px-3 text-xs font-semibold text-[#172033]"
           >
             <IconFilter size={14} className="text-[#64748B]" />
             <span>Filters</span>
@@ -413,16 +414,17 @@ export default function OrdersPage() {
             <label className="mb-1 block text-[11px] font-semibold text-[#64748B]">
               Payment Method
             </label>
-            <select
+            <Select
+              sizeVariant="sm"
               value={paymentFilter}
               onChange={(e) => setPaymentFilter(e.target.value)}
-              className="h-8 rounded-lg border border-[#D9E2E8] px-2.5 text-xs text-[#172033]"
+              wrapperClassName="w-auto min-w-[140px]"
             >
               <option value="all">All</option>
               <option value="cod">Cash on Delivery</option>
               <option value="bkash">bKash</option>
               <option value="nagad">Nagad</option>
-            </select>
+            </Select>
           </div>
 
           <div className="flex-1">

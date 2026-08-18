@@ -535,6 +535,19 @@ export default function ActivityPage() {
               {/* Area fill for Tokens In */}
               {areaInD && <path d={areaInD} fill="url(#tokenInGrad)" />}
 
+              {/* Vertical Crosshair Line */}
+              {hoveredTrendIndex !== null && svgTrendCoords[hoveredTrendIndex] && (
+                <line
+                  x1={svgTrendCoords[hoveredTrendIndex].x}
+                  y1={padY}
+                  x2={svgTrendCoords[hoveredTrendIndex].x}
+                  y2={chartHeight - padY}
+                  stroke="#CBD5E1"
+                  strokeDasharray="3 3"
+                  strokeWidth="1"
+                />
+              )}
+
               {/* Tokens In Line (Green) */}
               {pathInD && (
                 <path
@@ -560,48 +573,90 @@ export default function ActivityPage() {
               )}
 
               {/* Data points */}
-              {svgTrendCoords.map((c, idx) => (
-                <g key={idx}>
-                  <circle
-                    cx={c.x}
-                    cy={c.yIn}
-                    r="4"
-                    fill="#FFFFFF"
-                    stroke="#087F5B"
-                    strokeWidth="2"
-                    className="cursor-pointer transition-transform hover:scale-150"
+              {svgTrendCoords.map((c, idx) => {
+                const isHovered = hoveredTrendIndex === idx;
+                return (
+                  <g key={idx}>
+                    {/* Halos on Hover */}
+                    {isHovered && (
+                      <>
+                        <circle
+                          cx={c.x}
+                          cy={c.yIn}
+                          r="10"
+                          fill="#087F5B"
+                          fillOpacity="0.18"
+                          className="pointer-events-none"
+                        />
+                        <circle
+                          cx={c.x}
+                          cy={c.yOut}
+                          r="9"
+                          fill="#2563EB"
+                          fillOpacity="0.18"
+                          className="pointer-events-none"
+                        />
+                      </>
+                    )}
+                    {/* Tokens In Dot */}
+                    <circle
+                      cx={c.x}
+                      cy={c.yIn}
+                      r={isHovered ? 5.5 : 3.5}
+                      fill="#FFFFFF"
+                      stroke="#087F5B"
+                      strokeWidth={isHovered ? 2.5 : 2}
+                      className="pointer-events-none transition-all duration-150"
+                    />
+                    {/* Tokens Out Dot */}
+                    <circle
+                      cx={c.x}
+                      cy={c.yOut}
+                      r={isHovered ? 4.8 : 3}
+                      fill="#FFFFFF"
+                      stroke="#2563EB"
+                      strokeWidth={isHovered ? 2.2 : 1.8}
+                      className="pointer-events-none transition-all duration-150"
+                    />
+                    {/* Date label */}
+                    <text
+                      x={c.x}
+                      y={chartHeight - 6}
+                      textAnchor="middle"
+                      fontSize="9"
+                      fill={isHovered ? "#087F5B" : "#64748B"}
+                      fontWeight={isHovered ? "600" : "400"}
+                      fontFamily="Inter, sans-serif"
+                    >
+                      {c.day.label}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* Wide Invisible Column Hitboxes for perfectly stable hover */}
+              {svgTrendCoords.map((c, idx) => {
+                const colWidth = (chartWidth - padX * 2) / (svgTrendCoords.length || 1);
+                return (
+                  <rect
+                    key={`hitbox-${idx}`}
+                    x={c.x - colWidth / 2}
+                    y={0}
+                    width={colWidth}
+                    height={chartHeight}
+                    fill="transparent"
+                    className="cursor-pointer"
                     onMouseEnter={() => setHoveredTrendIndex(idx)}
                     onMouseLeave={() => setHoveredTrendIndex(null)}
                   />
-                  <circle
-                    cx={c.x}
-                    cy={c.yOut}
-                    r="3.5"
-                    fill="#FFFFFF"
-                    stroke="#2563EB"
-                    strokeWidth="1.8"
-                    className="cursor-pointer transition-transform hover:scale-150"
-                    onMouseEnter={() => setHoveredTrendIndex(idx)}
-                    onMouseLeave={() => setHoveredTrendIndex(null)}
-                  />
-                  <text
-                    x={c.x}
-                    y={chartHeight - 6}
-                    textAnchor="middle"
-                    fontSize="9"
-                    fill="#64748B"
-                    fontFamily="Inter, sans-serif"
-                  >
-                    {c.day.label}
-                  </text>
-                </g>
-              ))}
+                );
+              })}
             </svg>
 
             {/* Hover Tooltip */}
             {hoveredTrendIndex !== null && svgTrendCoords[hoveredTrendIndex] && (
               <div
-                className="pointer-events-none absolute z-20 rounded-lg border border-[#E5E7EB] bg-[#101828] px-3 py-2 text-[11px] text-white shadow-xl"
+                className="pointer-events-none absolute z-20 rounded-xl border border-[#E5E7EB] bg-[#101828]/95 px-3.5 py-2.5 text-[11px] text-white shadow-xl backdrop-blur-xs transition-all duration-150"
                 style={{
                   left: `${(svgTrendCoords[hoveredTrendIndex].x / chartWidth) * 100}%`,
                   top: `20%`,

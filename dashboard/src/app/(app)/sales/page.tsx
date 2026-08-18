@@ -651,6 +651,19 @@ export default function SalesPage() {
               {/* Area Gradient Fill */}
               {areaPathD && <path d={areaPathD} fill="url(#salesGrad)" />}
 
+              {/* Vertical Crosshair Line for Active Point */}
+              {hoveredChartPoint && (
+                <line
+                  x1={hoveredChartPoint.x}
+                  y1={paddingY}
+                  x2={hoveredChartPoint.x}
+                  y2={chartHeight - paddingY}
+                  stroke="#CBD5E1"
+                  strokeDasharray="3 3"
+                  strokeWidth="1"
+                />
+              )}
+
               {/* Primary Green Line */}
               {linePathD && (
                 <path
@@ -664,16 +677,58 @@ export default function SalesPage() {
               )}
 
               {/* Data Point Circles */}
-              {svgCoordinates.map((c, idx) => (
-                <g key={idx}>
-                  <circle
-                    cx={c.x}
-                    cy={c.y}
-                    r="4"
-                    fill="#FFFFFF"
-                    stroke="#087F5B"
-                    strokeWidth="2"
-                    className="cursor-pointer transition-transform hover:scale-150"
+              {svgCoordinates.map((c, idx) => {
+                const isHovered = hoveredChartPoint?.date === c.point.label;
+                return (
+                  <g key={idx}>
+                    {/* Outer Glow Halo on Hover */}
+                    {isHovered && (
+                      <circle
+                        cx={c.x}
+                        cy={c.y}
+                        r="10"
+                        fill="#087F5B"
+                        fillOpacity="0.18"
+                        className="pointer-events-none"
+                      />
+                    )}
+                    <circle
+                      cx={c.x}
+                      cy={c.y}
+                      r={isHovered ? 5.5 : 3.5}
+                      fill="#FFFFFF"
+                      stroke="#087F5B"
+                      strokeWidth={isHovered ? 2.5 : 2}
+                      className="pointer-events-none transition-all duration-150"
+                    />
+                    {/* X-axis date labels */}
+                    <text
+                      x={c.x}
+                      y={chartHeight - 6}
+                      textAnchor="middle"
+                      fontSize="9"
+                      fill={isHovered ? "#087F5B" : "#64748B"}
+                      fontWeight={isHovered ? "600" : "400"}
+                      fontFamily="Inter, sans-serif"
+                    >
+                      {c.point.label}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* Wide Invisible Column Hitboxes for perfectly stable hover */}
+              {svgCoordinates.map((c, idx) => {
+                const colWidth = (chartWidth - paddingX * 2) / (svgCoordinates.length || 1);
+                return (
+                  <rect
+                    key={`hitbox-${idx}`}
+                    x={c.x - colWidth / 2}
+                    y={0}
+                    width={colWidth}
+                    height={chartHeight}
+                    fill="transparent"
+                    className="cursor-pointer"
                     onMouseEnter={() =>
                       setHoveredChartPoint({
                         date: c.point.label,
@@ -685,33 +740,22 @@ export default function SalesPage() {
                     }
                     onMouseLeave={() => setHoveredChartPoint(null)}
                   />
-                  {/* X-axis date labels */}
-                  <text
-                    x={c.x}
-                    y={chartHeight - 6}
-                    textAnchor="middle"
-                    fontSize="9"
-                    fill="#64748B"
-                    fontFamily="Inter, sans-serif"
-                  >
-                    {c.point.label}
-                  </text>
-                </g>
-              ))}
+                );
+              })}
             </svg>
 
             {/* Interactive Tooltip */}
             {hoveredChartPoint && (
               <div
-                className="pointer-events-none absolute z-20 rounded-lg border border-[#E5E7EB] bg-[#101828] px-2.5 py-1.5 text-[11px] text-white shadow-lg"
+                className="pointer-events-none absolute z-20 rounded-xl border border-[#E5E7EB] bg-[#101828]/95 px-3 py-2 text-[11px] text-white shadow-xl backdrop-blur-xs transition-all duration-150"
                 style={{
                   left: `${(hoveredChartPoint.x / chartWidth) * 100}%`,
-                  top: `${Math.max(0, (hoveredChartPoint.y / chartHeight) * 100 - 35)}%`,
+                  top: `${Math.max(0, (hoveredChartPoint.y / chartHeight) * 100 - 40)}%`,
                   transform: "translate(-50%, -100%)",
                 }}
               >
                 <div className="font-semibold">{hoveredChartPoint.date}</div>
-                <div className="text-[#34D399]">
+                <div className="mt-0.5 text-[#34D399]">
                   Revenue: {fmtTaka(hoveredChartPoint.revenue)}
                 </div>
                 <div className="text-[#94A3B8]">

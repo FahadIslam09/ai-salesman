@@ -115,47 +115,64 @@ function SidebarContent({
 }) {
   return (
     <div className="flex h-full flex-col justify-between">
-      <div>
+      <div className="flex flex-1 flex-col overflow-hidden">
         {/* Logo area */}
-        <div className="flex items-center gap-3 border-b border-line px-5 py-4.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-leaf text-white shadow-xs">
-            <IconSparkles size={20} />
-          </div>
-          <div>
-            <p className="text-[15px] font-bold tracking-tight text-ink">AI Sales Bot</p>
-            <p className="text-[11px] font-medium text-mute">E-commerce copilot</p>
-          </div>
+        <div className="flex items-center justify-between border-b border-[#E2E8F0] px-5 py-4.5">
+          <Link href="/overview" className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#087F5B] to-[#066B4C] text-white shadow-[0_2px_8px_rgba(8,127,91,0.25)] ring-1 ring-white/20">
+              <IconSparkles size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[15px] font-bold tracking-tight text-[#0F172A]">
+                  AI Sales Bot
+                </span>
+                <span className="rounded-md bg-[#E8F5EF] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#087F5B]">
+                  Pro
+                </span>
+              </div>
+              <p className="text-[11px] font-medium text-[#64748B]">E-commerce copilot</p>
+            </div>
+          </Link>
         </div>
 
-        {/* Navigation groups */}
-        <nav className="space-y-4 px-3 py-3.5">
+        {/* Navigation groups with custom smooth scrollbar */}
+        <nav className="dropdown-scrollbar flex-1 space-y-4.5 overflow-y-auto px-3.5 py-4">
           {NAV.map((group) => (
             <div key={group.section}>
-              <p className="mb-1 px-3 text-[10px] font-bold uppercase tracking-wider text-mute">
+              <p className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">
                 {group.section}
               </p>
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 {group.items.map((item) => {
-                  const active = pathname === item.href || (item.href !== "/overview" && pathname.startsWith(item.href));
+                  const active =
+                    pathname === item.href ||
+                    (item.href !== "/overview" && pathname.startsWith(item.href));
                   const Icon = item.icon;
                   return (
                     <Link
                       key={item.href}
                       href={item.href}
                       onClick={onNavClick}
-                      className={`group flex h-9 items-center gap-2.5 rounded-lg px-3 text-sm font-medium transition-all ${
+                      className={`group relative flex h-9.5 items-center gap-2.5 rounded-xl px-3 text-sm font-medium transition-all duration-150 ${
                         active
-                          ? "bg-leaf-soft font-semibold text-leaf"
-                          : "text-[#40514B] hover:bg-paper hover:text-ink"
+                          ? "bg-[#E8F5EF] font-semibold text-[#087F5B] shadow-[0_1px_2px_rgba(8,127,91,0.06)]"
+                          : "text-[#475569] hover:bg-[#F8FAFC] hover:text-[#0F172A]"
                       }`}
                     >
+                      {/* Active indicator bar */}
+                      {active && (
+                        <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-[#087F5B]" />
+                      )}
                       <Icon
-                        size={17}
-                        className={`transition-colors ${
-                          active ? "text-leaf" : "text-mute group-hover:text-ink"
+                        size={18}
+                        className={`shrink-0 transition-colors duration-150 ${
+                          active
+                            ? "text-[#087F5B]"
+                            : "text-[#94A3B8] group-hover:text-[#0F172A]"
                         }`}
                       />
-                      <span>{item.label}</span>
+                      <span className="truncate">{item.label}</span>
                     </Link>
                   );
                 })}
@@ -166,40 +183,53 @@ function SidebarContent({
       </div>
 
       {/* Bottom Area */}
-      <div className="border-t border-line p-3">
+      <div className="border-t border-[#E2E8F0] p-3.5">
         {/* Credits Card */}
         <Link
           href="/credits"
           onClick={onNavClick}
-          className="group mb-2.5 block rounded-xl border border-line bg-paper p-3 transition-all hover:border-[#D0D7D4] hover:bg-leaf-soft/40"
+          className="group relative mb-3 block overflow-hidden rounded-2xl border border-[#A7F3D0]/80 bg-gradient-to-br from-[#F0FDF4] via-[#F0FDF4] to-[#ECFDF5] p-3.5 shadow-[0_2px_10px_rgba(8,127,91,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#6EE7B7] hover:shadow-[0_4px_16px_rgba(8,127,91,0.12)]"
         >
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-ink">
-              <IconZap size={14} className="text-leaf" />
+            <div className="flex items-center gap-1.5 text-xs font-bold text-[#065F46]">
+              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[#087F5B] text-white shadow-2xs">
+                <IconZap size={11} />
+              </span>
               <span>AI Credits</span>
             </div>
-            <span className="text-[11px] font-semibold text-leaf group-hover:underline">Recharge</span>
+            <span className="inline-flex items-center gap-0.5 rounded-full bg-[#087F5B]/10 px-2 py-0.5 text-[10px] font-bold text-[#087F5B] transition-colors group-hover:bg-[#087F5B] group-hover:text-white">
+              Recharge
+            </span>
           </div>
-          <p className="mt-1 text-lg font-bold text-ink">
-            {credits !== null ? credits.toLocaleString("en-IN") : "—"}
-          </p>
+          <div className="mt-2 flex items-baseline justify-between">
+            <p className="font-display text-xl font-bold tracking-tight text-[#0F172A]">
+              {credits !== null ? credits.toLocaleString("en-IN") : "—"}
+            </p>
+            <span className="text-[10px] font-medium text-[#059669]">Available balance</span>
+          </div>
         </Link>
 
-        {/* User / Logout Area */}
-        <div className="flex items-center justify-between rounded-lg px-2 py-1.5">
+        {/* User Profile Footer */}
+        <div className="flex items-center justify-between rounded-2xl border border-[#E2E8F0] bg-[#FAFBFB] p-2 shadow-[0_1px_2px_rgba(16,24,40,0.03)] transition-all hover:border-[#CBD5E1]">
           <div className="flex min-w-0 items-center gap-2.5">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-leaf-soft text-xs font-bold text-leaf">
-              {(user?.name || user?.email || "U")[0]?.toUpperCase()}
+            <div className="relative shrink-0">
+              <div className="flex h-8.5 w-8.5 items-center justify-center rounded-xl bg-gradient-to-tr from-[#087F5B] to-[#10B981] text-xs font-bold text-white shadow-xs">
+                {(user?.name || user?.email || "U")[0]?.toUpperCase()}
+              </div>
+              <span className="absolute -bottom-0.5 -right-0.5 block h-2.5 w-2.5 rounded-full border-2 border-white bg-[#10B981]" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-xs font-semibold text-ink">{user?.name || "Admin"}</p>
-              <p className="truncate text-[11px] text-mute">{user?.email || "admin@store.com"}</p>
+              <p className="truncate text-xs font-bold text-[#0F172A]">{user?.name || "Admin"}</p>
+              <p className="truncate text-[11px] font-medium text-[#64748B]">
+                {user?.email || "admin@store.com"}
+              </p>
             </div>
           </div>
           <button
+            type="button"
             title="Log out"
             aria-label="Log out"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-mute transition-colors hover:bg-paper hover:text-danger"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-[#94A3B8] transition-all hover:bg-[#FEE2E2] hover:text-[#DC2626]"
             onClick={async () => {
               await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/sign-out`, {
                 method: "POST",
@@ -248,9 +278,9 @@ function Shell({ children, user }: { children: ReactNode; user: UserProfile | nu
   });
 
   return (
-    <div className="flex min-h-screen bg-paper">
-      {/* Desktop Sidebar (248px) */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col border-r border-line bg-surface md:flex">
+    <div className="flex min-h-screen bg-[#F8FAF9]">
+      {/* Desktop Sidebar (260px) */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[260px] flex-col border-r border-[#E2E8F0] bg-white md:flex">
         <SidebarContent pathname={pathname} credits={credits} user={user} />
       </aside>
 
@@ -261,8 +291,8 @@ function Shell({ children, user }: { children: ReactNode; user: UserProfile | nu
             className="fixed inset-0 bg-ink/40 backdrop-blur-xs transition-opacity"
             onClick={() => setMobileOpen(false)}
           />
-          <div className="relative flex w-[260px] max-w-[85vw] flex-1 flex-col bg-surface shadow-2xl">
-            <div className="absolute top-3.5 right-3">
+          <div className="relative flex w-[280px] max-w-[85vw] flex-1 flex-col bg-white shadow-2xl">
+            <div className="absolute top-3.5 right-3 z-10">
               <button
                 type="button"
                 aria-label="Close sidebar"
@@ -283,9 +313,9 @@ function Shell({ children, user }: { children: ReactNode; user: UserProfile | nu
       )}
 
       {/* Main Content Area */}
-      <div className="flex flex-1 flex-col md:ml-[248px]">
+      <div className="flex flex-1 flex-col md:ml-[260px]">
         {/* Sticky Top Header (72px) */}
-        <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-line bg-surface/95 px-4 sm:px-6 lg:px-8 backdrop-blur-md">
+        <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-[#E2E8F0] bg-white/95 px-4 sm:px-6 lg:px-8 backdrop-blur-md">
           {/* Header Left */}
           <div className="flex items-center gap-3">
             <button

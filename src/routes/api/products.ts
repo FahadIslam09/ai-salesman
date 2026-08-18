@@ -15,9 +15,18 @@ productsRouter.post("/upload", express.text({ type: "text/plain", limit: "10mb" 
   try {
     const image = req.body;
     if (!image || typeof image !== "string") {
-      res.status(400).json({ error: "image required" });
+      res.status(400).json({ error: "Image data is required" });
       return;
     }
+
+    // Verify image data URI or base64 image signature
+    const isDataUriImage = image.startsWith("data:image/");
+    const isRawBase64Image = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(image.slice(0, 100));
+    if (!isDataUriImage && !isRawBase64Image) {
+      res.status(400).json({ error: "Only image files (PNG, JPG, WEBP, GIF) are supported." });
+      return;
+    }
+
     const url = await uploadImage(image);
     res.json({ url });
   } catch (err: any) {
@@ -57,7 +66,7 @@ productsRouter.get("/:id", async (req, res) => {
 });
 
 productsRouter.post("/", async (req, res) => {
-  const { pageId, name, keywords, imageUrl, images, price, description, discount, stockStatus, category, sku, variants, deliveryInfo } = req.body;
+  const { pageId, name, keywords, imageUrl, images, price, description, discount, discountType, stockStatus, category, sku, variants, deliveryInfo } = req.body;
   if (!pageId || !name || !keywords) {
     res.status(400).json({ error: "pageId, name, keywords required" });
     return;
@@ -84,6 +93,7 @@ productsRouter.post("/", async (req, res) => {
       price,
       description,
       discount,
+      discountType: discountType ?? "percent",
       stockStatus: stockStatus ?? "available",
       category,
       sku,
@@ -101,7 +111,7 @@ productsRouter.patch("/:id", async (req, res) => {
     return;
   }
   const allowed = [
-    "name", "keywords", "imageUrl", "images", "price", "description", "discount",
+    "name", "keywords", "imageUrl", "images", "price", "description", "discount", "discountType",
     "stockStatus", "category", "sku", "variants", "deliveryInfo",
   ] as const;
   const set: Record<string, unknown> = {};

@@ -52,6 +52,7 @@ export interface PromptInput {
     price: number | null;
     description?: string | null;
     discount?: number | null;
+    discountType?: string | null;
     stockStatus?: string | null;
     variants?: string[] | null;
     deliveryInfo?: string | null;
@@ -119,10 +120,29 @@ Your #2 goal: make the customer feel valued so they come back.`,
   if (input.products.length > 0) {
     const list = input.products
       .map((p, i) => {
+        const discountNote = p.discount
+          ? p.discountType === "fixed"
+            ? ` | 🏷️ Max negotiable discount: up to ${p.discount} টাকা (Sell at regular full price first! Offer discount only if customer hesitates or negotiates)`
+            : ` | 🏷️ Max negotiable discount: up to ${p.discount}% (Sell at regular full price first! Offer discount only if customer hesitates or negotiates)`
+          : "";
+
+        const variantStrings = Array.isArray(p.variants)
+          ? p.variants
+              .map((v: any) => {
+                if (typeof v === "string") return v;
+                if (typeof v === "object" && v !== null && v.color) {
+                  const imgCount = Array.isArray(v.images) ? v.images.length : 0;
+                  return `${v.color}${imgCount > 0 ? ` (${imgCount} photos)` : ""}`;
+                }
+                return "";
+              })
+              .filter(Boolean)
+          : [];
+
         const bits = [
           `${i + 1}. ${p.name} — ${p.price != null ? `${p.price} টাকা` : "price on request"}`,
-          p.discount ? ` (${p.discount}% OFF 🔥)` : "",
-          p.variants?.length ? ` | variants: ${p.variants.join(", ")}` : "",
+          discountNote,
+          variantStrings.length ? ` | variants: ${variantStrings.join(", ")}` : "",
           p.description ? ` | ${p.description}` : "",
           p.deliveryInfo ? ` | delivery: ${p.deliveryInfo}` : "",
           p.stockStatus === "out_of_stock"
@@ -135,7 +155,7 @@ Your #2 goal: make the customer feel valued so they come back.`,
       })
       .join("\n");
     parts.push(
-      `## PRODUCT CATALOG (your inventory — this is the ONLY source of truth)\n${list}\n\nRules:\n- Never invent products, prices, or stock levels.\n- ALWAYS write each product's name EXACTLY as it appears in the catalog — never translate, shorten, reword, or modify it. "Black with Pink-Red Stripes Premium Shirt" stays exactly that, even inside a Bangla sentence.\n- "variants" are the product's options: sizes (S, M, L, XL) and/or colors. Always check them before taking an order.\n- If a product is OUT OF STOCK, say so honestly and suggest the closest alternative.\n- If a product is LOW STOCK, create gentle urgency: "এটা শেষ হয়ে যাচ্ছে, তাড়াতাড়ি অর্ডার দিন!"\n- When a customer asks if a product is available or in stock, check that product's stock status FIRST, then give ONE consistent answer. Never start with "হ্যাঁ" (yes) or imply availability if the product is OUT OF STOCK — say it is out of stock, then suggest the closest in-stock alternative.`
+      `## PRODUCT CATALOG (your inventory — this is the ONLY source of truth)\n${list}\n\nRules:\n- Never invent products, prices, or stock levels.\n- ALWAYS write each product's name EXACTLY as it appears in the catalog — never translate, shorten, reword, or modify it.\n- "variants" are the product's options: sizes (S, M, L, XL) and/or colors. Always check them before taking an order.\n- **Discount & Negotiation**: Always attempt to sell at the product's regular full price first. If the customer negotiates or hesitates, you may offer a discount within that product's maximum allowable limit. NEVER exceed the maximum discount limit.\n- **Product Instructions**: If a product has specific instructions in its details (e.g. care instructions, restrictions, special notes), strictly follow and inform the customer about them.\n- If a product is OUT OF STOCK, say so honestly and suggest the closest alternative.\n- If a product is LOW STOCK, create gentle urgency: "এটা শেষ হয়ে যাচ্ছে, তাড়াতাড়ি অর্ডার দিন!"`
     );
   }
 
@@ -220,8 +240,18 @@ After the customer confirms, send the final thank-you and append this marker on 
 4. Never fake a match. Customers will lose trust permanently.`,
 
     `## SENDING PRODUCT PHOTOS
-- When the customer asks to see a product's photo, more pictures, or what it looks like, do NOT describe it in words. Reply with one short, natural, professional line that names the product, then put this marker on its own line for EACH product they want to see, using that product's number from the catalog above: [SEND_IMAGES: <number>]
-- Example: customer asks "এই শার্টের ছবি দেখান?" → reply "অবশ্যই! এই শার্টটির ছবি দেখুন 👇" then a new line with [SEND_IMAGES: 1]
+- When the customer asks to see a product's photo, more pictures, or what it looks like, do NOT describe it in words. Reply with one short, natural, professional line that names the product, then put this marker on its own line:
+  - If the customer asks for a general photo of the product (or doesn't specify a color):
+    [SEND_IMAGES: <number>]
+  - If the customer asks for a SPECIFIC COLOR variant (e.g. "Black কালারের ছবি দেখান", "নীল শার্টের ছবি পাঠান", "show me the Maroon one"):
+    [SEND_IMAGES: <number> | color: <color_name>]
+- ⚠️ CRITICAL COLOR VARIANT RULE: If a product has color variants and the user requests a specific color, ALWAYS specify that color in the marker (e.g. [SEND_IMAGES: 1 | color: Black]). The system will send ONLY the images of that specific color variant, and will NEVER send images from all variants or other colors.
+- Example 1 (General product photo):
+  Customer: "এই শার্টের ছবি দেখতে চাই"
+  Reply: "অবশ্যই! শার্টটির ছবি নিচে দেখুন 👇\n[SEND_IMAGES: 1]"
+- Example 2 (Specific color variant):
+  Customer: "Black কালারের শার্টের ছবি দেখান" / "Black color er picture dekhan"
+  Reply: "অবশ্যই! Black কালারের শার্টের ছবি দেখুন 👇\n[SEND_IMAGES: 1 | color: Black]"
 - Send only one short message before the images — do not add extra text for each image.
 - Only use this marker when the customer actually asks to see a photo and you can confidently identify the product from the catalog. Never send an unrelated product's image or an image you cannot verify.`,
 

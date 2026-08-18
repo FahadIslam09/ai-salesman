@@ -30,12 +30,12 @@ import {
   IconChevronDown,
   IconEdit,
   IconCalendar,
+  IconAlertTriangle,
 } from "@/components/Icons";
 
 interface ColorVariant {
   id: string;
   color: string;
-  colorHex: string;
   price: string;
   stock: string;
   sku: string;
@@ -53,18 +53,6 @@ const DEFAULT_CATEGORIES = [
   "Pants",
 ];
 
-const PRESET_COLORS = [
-  { name: "Black", hex: "#111827" },
-  { name: "White", hex: "#FFFFFF" },
-  { name: "Blue", hex: "#2563EB" },
-  { name: "Navy", hex: "#1E3A8A" },
-  { name: "Red", hex: "#DC2626" },
-  { name: "Green", hex: "#16A34A" },
-  { name: "Olive", hex: "#4D7C0F" },
-  { name: "Maroon", hex: "#881337" },
-  { name: "Gray", hex: "#6B7280" },
-];
-
 export default function NewProductPage() {
   const router = useRouter();
   const { pageId } = usePage();
@@ -72,11 +60,14 @@ export default function NewProductPage() {
   // Basic info
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
+  const [sizes, setSizes] = useState("S, M, L, XL, XXL");
   const [price, setPrice] = useState("");
   const [compareAtPrice, setCompareAtPrice] = useState("");
+  const [discount, setDiscount] = useState("");
+  const [discountType, setDiscountType] = useState<"fixed" | "percent">("fixed");
   const [stockStatus, setStockStatus] = useState("available");
   const [stockQuantity, setStockQuantity] = useState("0");
-  const [shortDescription, setShortDescription] = useState("");
+  const [productInstructions, setProductInstructions] = useState("");
   const [description, setDescription] = useState("");
 
   // Images
@@ -85,13 +76,13 @@ export default function NewProductPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const variantFileInputRef = useRef<HTMLInputElement>(null);
   const [activeVariantUploadId, setActiveVariantUploadId] = useState<string | null>(null);
+  const [dragOverVariantId, setDragOverVariantId] = useState<string | null>(null);
 
-  // Variants (Colors)
+  // Variants (Colors) - manual text input
   const [variants, setVariants] = useState<ColorVariant[]>([
     {
       id: "v-1",
       color: "Black",
-      colorHex: "#111827",
       price: "",
       stock: "0",
       sku: "",
@@ -100,7 +91,6 @@ export default function NewProductPage() {
     {
       id: "v-2",
       color: "Blue",
-      colorHex: "#2563EB",
       price: "",
       stock: "0",
       sku: "",
@@ -108,9 +98,8 @@ export default function NewProductPage() {
     },
   ]);
 
-  // Sidebar controls
-  const [status, setStatus] = useState<"published" | "draft">("draft");
-  const [visibility, setVisibility] = useState("public");
+  // Sidebar Publish Status: Public, Draft, Private
+  const [publishStatus, setPublishStatus] = useState<"public" | "draft" | "private">("draft");
   const [publishDate, setPublishDate] = useState(() => {
     return new Date().toLocaleDateString("en-US", {
       month: "short",
@@ -121,6 +110,13 @@ export default function NewProductPage() {
       hour12: true,
     });
   });
+
+  // Delete Confirmation Modal State
+  const [deleteTarget, setDeleteTarget] = useState<{
+    type: "variant" | "image";
+    id: string;
+    name?: string;
+  } | null>(null);
 
   // Categories & Tags
   const [availableCategories, setAvailableCategories] = useState<string[]>(DEFAULT_CATEGORIES);
@@ -137,6 +133,71 @@ export default function NewProductPage() {
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  const isSavedRef = useRef(false);
+  const [pendingNavigationHref, setPendingNavigationHref] = useState<string | null>(null);
+
+  // Form dirty state check: true if user modified fields, uploaded images, or upload is in progress
+  const isDirty = useMemo(() => {
+    if (uploadingImage) return true;
+    if (name.trim() !== "") return true;
+    if (price.trim() !== "") return true;
+    if (sku.trim() !== "") return true;
+    if (images.length > 0) return true;
+    if (discount.trim() !== "") return true;
+    if (productInstructions.trim() !== "") return true;
+    if (description.trim() !== "") return true;
+    if (
+      variants.some(
+        (v) =>
+          v.images.length > 0 ||
+          (v.color !== "Black" && v.color !== "Blue" && v.color.trim() !== "") ||
+          v.price.trim() !== "" ||
+          v.sku.trim() !== ""
+      )
+    )
+      return true;
+    return false;
+  }, [uploadingImage, name, price, sku, images, discount, productInstructions, description, variants]);
+
+  // Prevent closing tab / reloading page with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty && !isSavedRef.current) {
+        e.preventDefault();
+        e.returnValue = "";
+        return "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
+
+  // Intercept in-app navigation link clicks (sidebar, header, breadcrumbs)
+  useEffect(() => {
+    const handleAnchorClick = (e: MouseEvent) => {
+      if (!isDirty || isSavedRef.current) return;
+
+      const target = e.target as HTMLElement;
+      const anchor = target.closest("a");
+      if (!anchor) return;
+
+      const href = anchor.getAttribute("href");
+      if (
+        !href ||
+        href.startsWith("#") ||
+        href.startsWith("javascript:") ||
+        anchor.target === "_blank"
+      )
+        return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      setPendingNavigationHref(href);
+    };
+
+    document.addEventListener("click", handleAnchorClick, true);
+    return () => document.removeEventListener("click", handleAnchorClick, true);
+  }, [isDirty]);
 
   // Fetch existing categories from catalog
   useEffect(() => {
@@ -163,11 +224,22 @@ export default function NewProductPage() {
   }
 
   async function uploadFiles(files: File[], targetVariantId?: string | null) {
-    setUploadingImage(true);
     setError("");
+
+    // Strict image file filtering: accept image/* only
+    const imageFiles = files.filter((f) => f.type.startsWith("image/"));
+    if (imageFiles.length === 0) {
+      setError("Only image files (PNG, JPG, WEBP, GIF) are allowed.");
+      return;
+    }
+    if (imageFiles.length < files.length) {
+      setError("Non-image files were skipped. Only image files were uploaded.");
+    }
+
+    setUploadingImage(true);
     try {
       const urls: string[] = [];
-      for (const file of files) {
+      for (const file of imageFiles) {
         if (file.size > 5 * 1024 * 1024) {
           throw new Error(`File ${file.name} exceeds 5MB limit.`);
         }
@@ -199,6 +271,8 @@ export default function NewProductPage() {
       setError(err.message || "Failed to upload image.");
     } finally {
       setUploadingImage(false);
+      setActiveVariantUploadId(null);
+      setDragOverVariantId(null);
     }
   }
 
@@ -260,24 +334,27 @@ export default function NewProductPage() {
 
   // Variant actions
   function addVariant() {
-    const nextIndex = variants.length + 1;
-    const preset = PRESET_COLORS[nextIndex % PRESET_COLORS.length];
     setVariants((prev) => [
       ...prev,
       {
         id: `v-${Date.now()}`,
-        color: preset.name,
-        colorHex: preset.hex,
+        color: "",
         price: "",
         stock: "0",
-        sku: sku ? `${sku}-${preset.name.slice(0, 3).toUpperCase()}` : "",
+        sku: "",
         images: [],
       },
     ]);
   }
 
-  function removeVariant(id: string) {
-    setVariants((prev) => prev.filter((v) => v.id !== id));
+  function handleConfirmDeleteTarget() {
+    if (!deleteTarget) return;
+    if (deleteTarget.type === "variant") {
+      setVariants((prev) => prev.filter((v) => v.id !== deleteTarget.id));
+    } else if (deleteTarget.type === "image") {
+      setImages((prev) => prev.filter((_, idx) => String(idx) !== deleteTarget.id));
+    }
+    setDeleteTarget(null);
   }
 
   function updateVariant(id: string, updates: Partial<ColorVariant>) {
@@ -321,14 +398,16 @@ export default function NewProductPage() {
   }
 
   // Validation & Save Handler
-  async function handleSave(intendedStatus: "published" | "draft") {
+  async function handleSave(intendedStatus?: "published" | "draft") {
     setError("");
     const errors: Record<string, string> = {};
+
+    const effectiveStatus = intendedStatus ?? (publishStatus === "public" ? "published" : "draft");
 
     if (!name.trim()) {
       errors.name = "Product name is required.";
     }
-    if (intendedStatus === "published" && !price) {
+    if (effectiveStatus === "published" && !price) {
       errors.price = "Price is required to publish product.";
     }
 
@@ -359,25 +438,30 @@ export default function NewProductPage() {
       const keywordsString = Array.from(
         new Set([
           name.toLowerCase(),
+          ...sizes.split(/[,/]+/).map((s) => s.trim().toLowerCase()).filter(Boolean),
           ...tags,
           ...selectedCategories.map((c) => c.toLowerCase()),
-          ...variants.map((v) => v.color.toLowerCase()),
+          ...variants.map((v) => v.color.toLowerCase()).filter(Boolean),
         ])
       )
         .filter(Boolean)
         .join(", ");
 
-      const computedDiscount =
+      const finalDiscount = discount ? Number(discount) : (
         price && compareAtPrice && Number(compareAtPrice) > Number(price)
           ? Math.round(((Number(compareAtPrice) - Number(price)) / Number(compareAtPrice)) * 100)
-          : null;
+          : null
+      );
 
       const finalStockStatus =
-        intendedStatus === "draft" ? "hidden" : stockStatus;
+        (effectiveStatus === "draft" || publishStatus === "draft" || publishStatus === "private")
+          ? "hidden"
+          : stockStatus;
 
-      // Full product description combining short + rich description
+      // Full product description combining sizes + instructions + rich description
       const fullDescription = [
-        shortDescription.trim() ? shortDescription.trim() : null,
+        sizes.trim() ? `Sizes: ${sizes.trim()}` : null,
+        productInstructions.trim() ? `Instructions: ${productInstructions.trim()}` : null,
         description.trim() ? description.trim() : null,
       ]
         .filter(Boolean)
@@ -393,7 +477,8 @@ export default function NewProductPage() {
           imageUrl: primaryImg,
           images: allCollectedImages,
           price: price ? Number(price) : null,
-          discount: computedDiscount,
+          discount: finalDiscount,
+          discountType: discount ? discountType : "percent",
           stockStatus: finalStockStatus,
           category: selectedCategories[0] || null,
           variants: variants.length > 0 ? variants : null,
@@ -401,6 +486,7 @@ export default function NewProductPage() {
         }),
       });
 
+      isSavedRef.current = true;
       router.push("/products");
     } catch (err: any) {
       setError(err.message || "Failed to save product.");
@@ -430,7 +516,7 @@ export default function NewProductPage() {
               Products
             </Link>
             <span>›</span>
-            <span className="font-medium text-[#172033]">Add New Product</span>
+            <span className="font-medium text-[#172033]">Add Product</span>
           </div>
         </div>
 
@@ -465,15 +551,18 @@ export default function NewProductPage() {
         </div>
       )}
 
-      {/* 2. Main Two-Column Layout (Desktop ~70% Left, ~30% Right) */}
+      {/* 2. Main Form Grid (8 cols left, 4 cols right) */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Left Column (8 cols): Product Information, Images, Variants */}
+        {/* Left Column (8 cols): Information, Images, Variants */}
         <div className="space-y-6 lg:col-span-8">
           {/* Card A: Product Information */}
           <Card className="p-6">
             <h2 className="text-base font-semibold text-[#172033]">
               Product Information
             </h2>
+            <p className="mt-0.5 text-xs text-[#64748B]">
+              Basic product identity, pricing, and stock details.
+            </p>
 
             <div className="mt-5 space-y-4">
               {/* Row 1: Product Name + SKU */}
@@ -516,8 +605,8 @@ export default function NewProductPage() {
                 </div>
               </div>
 
-              {/* Row 2: Price (BDT) + Compare at Price (BDT) */}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {/* Row 2: Price (BDT) + Compare at Price (BDT) + Max Negotiable Discount */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-[#334155]">
                     Price (BDT) <span className="text-danger">*</span>
@@ -567,12 +656,75 @@ export default function NewProductPage() {
                     />
                   </div>
                   <p className="mt-1 text-[11px] text-[#64748B]">
-                    Leave empty if not on sale
+                    Original price if on sale
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-[#334155]">
+                    Max Negotiable Discount
+                  </label>
+                  <div className="flex rounded-lg border border-[#D9E2E8] bg-white shadow-2xs focus-within:border-[#087F5B]">
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="0"
+                      value={discount}
+                      onChange={(e) => setDiscount(e.target.value)}
+                      className="h-10 min-w-0 flex-1 bg-transparent px-3 text-sm font-semibold text-[#172033] placeholder:text-[#94A3B8] focus:outline-none"
+                    />
+                    <div className="flex items-center border-l border-[#D9E2E8] bg-[#F8FAFC] p-1">
+                      <button
+                        type="button"
+                        onClick={() => setDiscountType("fixed")}
+                        className={`rounded px-2 py-1 text-xs font-bold transition-colors ${
+                          discountType === "fixed"
+                            ? "bg-[#087F5B] text-white shadow-xs"
+                            : "text-[#64748B] hover:text-[#172033]"
+                        }`}
+                        title="Fixed Amount (৳)"
+                      >
+                        ৳
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDiscountType("percent")}
+                        className={`rounded px-2 py-1 text-xs font-bold transition-colors ${
+                          discountType === "percent"
+                            ? "bg-[#087F5B] text-white shadow-xs"
+                            : "text-[#64748B] hover:text-[#172033]"
+                        }`}
+                        title="Percentage (%)"
+                      >
+                        %
+                      </button>
+                    </div>
+                  </div>
+                  <p className="mt-1 text-[11px] text-[#64748B]">
+                    AI sells at full price first; offers discount up to this limit
                   </p>
                 </div>
               </div>
 
-              {/* Row 3: Stock Status + Stock Quantity */}
+              {/* Row 3: Product Sizes / Options */}
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-[#334155]">
+                  Product Sizes / Size Options
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. S, M, L, XL, XXL or 38, 40, 42, 44 or Free Size"
+                  value={sizes}
+                  onChange={(e) => setSizes(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-[#D9E2E8] bg-white px-3 text-sm text-[#172033] placeholder:text-[#94A3B8] shadow-2xs focus:border-[#087F5B] focus:outline-none"
+                />
+                <p className="mt-1 text-[11px] text-[#64748B]">
+                  Enter all available sizes for this product separated by commas
+                </p>
+              </div>
+
+              {/* Row 4: Stock Status + Stock Quantity */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-[#334155]">
@@ -610,21 +762,29 @@ export default function NewProductPage() {
                 </div>
               </div>
 
-              {/* Row 4: Short Description */}
+              {/* Row 5: Product Instructions */}
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-[#334155]">
-                  Short Description
-                </label>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-[#334155]">
+                    Product Instructions
+                  </label>
+                  <span className="text-[11px] font-medium text-[#087F5B]">
+                    AI Sales Assistant Guidelines
+                  </span>
+                </div>
                 <textarea
                   rows={2}
-                  placeholder="A short summary about the product..."
-                  value={shortDescription}
-                  onChange={(e) => setShortDescription(e.target.value)}
+                  placeholder="e.g. Wash in cold water, dry clean only, includes free wooden hanger, non-refundable item, 1 year warranty..."
+                  value={productInstructions}
+                  onChange={(e) => setProductInstructions(e.target.value)}
                   className="w-full rounded-lg border border-[#D9E2E8] bg-white p-3 text-sm text-[#172033] placeholder:text-[#94A3B8] shadow-2xs focus:border-[#087F5B] focus:outline-none"
                 />
+                <p className="mt-1 text-[11px] text-[#64748B]">
+                  Specific instructions or details for this product that the AI sales assistant should strictly follow and communicate to customers.
+                </p>
               </div>
 
-              {/* Row 5: Description with Rich Text Toolbar */}
+              {/* Row 6: Description with Rich Text Toolbar */}
               <div>
                 <label className="mb-1.5 block text-xs font-semibold text-[#334155]">
                   Description
@@ -748,7 +908,7 @@ export default function NewProductPage() {
           <Card className="p-6">
             <h2 className="text-base font-semibold text-[#172033]">Product Images</h2>
             <p className="mt-0.5 text-xs text-[#64748B]">
-              Add clear images of your product. The first image will be used as the primary thumbnail.
+              Add clear images of your product. The first image will be used as the primary thumbnail. Only image files (PNG, JPG, WEBP, GIF) are accepted.
             </p>
 
             {/* Upload Area */}
@@ -760,6 +920,7 @@ export default function NewProductPage() {
                   f.type.startsWith("image/")
                 );
                 if (files.length) uploadFiles(files);
+                else setError("Only image files are allowed.");
               }}
               onClick={() => fileInputRef.current?.click()}
               className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#D9E2E8] bg-[#F8FAFC] p-7 text-center transition-colors hover:border-[#087F5B] hover:bg-[#E8F5EF]/20"
@@ -770,11 +931,11 @@ export default function NewProductPage() {
               <p className="mt-2 text-xs font-semibold text-[#172033]">
                 Upload images <span className="font-normal text-[#64748B]">or drag and drop here</span>
               </p>
-              <p className="mt-0.5 text-[11px] text-[#64748B]">PNG, JPG up to 5MB</p>
+              <p className="mt-0.5 text-[11px] text-[#64748B]">PNG, JPG, WEBP up to 5MB</p>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/png, image/jpeg, image/webp, image/gif, image/*"
                 multiple
                 className="hidden"
                 onChange={(e) => {
@@ -810,7 +971,7 @@ export default function NewProductPage() {
                       aria-label="Remove image"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setImages((prev) => prev.filter((_, idx) => idx !== i));
+                        setDeleteTarget({ type: "image", id: String(i) });
                       }}
                       className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-danger text-white opacity-0 transition-opacity group-hover:opacity-100 shadow-xs"
                     >
@@ -835,9 +996,14 @@ export default function NewProductPage() {
           {/* Card C: Variants (Color) */}
           <Card className="p-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-[#172033]">
-                Variants (Color)
-              </h2>
+              <div>
+                <h2 className="text-base font-semibold text-[#172033]">
+                  Variants (Color)
+                </h2>
+                <p className="mt-0.5 text-xs text-[#64748B]">
+                  Enter color names manually and drag & drop multiple images for each color.
+                </p>
+              </div>
               <Button
                 type="button"
                 onClick={addVariant}
@@ -849,37 +1015,21 @@ export default function NewProductPage() {
             </div>
 
             <div className="mt-5 space-y-4">
-              {variants.map((v, index) => (
+              {variants.map((v) => (
                 <div
                   key={v.id}
                   className="rounded-xl border border-[#E5E7EB] bg-[#FAFCFB] p-4 transition-all hover:border-[#D0D7D4]"
                 >
                   {/* Desktop Variant Row */}
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    {/* Left: Drag + Swatch + Color Name */}
+                    {/* Left: Drag + Color Name Input */}
                     <div className="flex items-center gap-2.5">
                       <div className="cursor-grab text-[#94A3B8]">
                         <IconGripVertical size={16} />
                       </div>
 
-                      {/* Color Picker Swatch */}
-                      <label
-                        className="relative flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-[#D9E2E8] shadow-2xs transition-transform hover:scale-105"
-                        style={{ backgroundColor: v.colorHex }}
-                        title="Click to pick color"
-                      >
-                        <input
-                          type="color"
-                          value={v.colorHex}
-                          onChange={(e) =>
-                            updateVariant(v.id, { colorHex: e.target.value })
-                          }
-                          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                        />
-                      </label>
-
-                      {/* Color Name Input */}
-                      <div className="w-32">
+                      {/* Manual Color Name Input */}
+                      <div className="w-36 sm:w-40">
                         <label className="mb-1 block text-[11px] font-semibold text-[#64748B]">
                           Color Name <span className="text-danger">*</span>
                         </label>
@@ -890,8 +1040,8 @@ export default function NewProductPage() {
                           onChange={(e) =>
                             updateVariant(v.id, { color: e.target.value })
                           }
-                          placeholder="e.g. Black"
-                          className="h-9 w-full rounded-lg border border-[#D9E2E8] bg-white px-2.5 text-xs font-medium text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
+                          placeholder="e.g. Black, Blue, Maroon"
+                          className="h-9 w-full rounded-lg border border-[#D9E2E8] bg-white px-3 text-xs font-medium text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
                         />
                       </div>
                     </div>
@@ -954,17 +1104,42 @@ export default function NewProductPage() {
                       </div>
                     </div>
 
-                    {/* Right: Images Preview / Upload & Delete Variant */}
+                    {/* Right: Drag-and-Drop & Multi-Image Upload Area + Delete Variant */}
                     <div className="flex items-center gap-2">
                       <div>
                         <label className="mb-1 block text-[11px] font-semibold text-[#64748B]">
-                          Images
+                          Color Images ({v.images.length})
                         </label>
-                        <div className="flex items-center gap-1.5">
+                        <div
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            setDragOverVariantId(v.id);
+                          }}
+                          onDragLeave={() => {
+                            if (dragOverVariantId === v.id) setDragOverVariantId(null);
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            setDragOverVariantId(null);
+                            const dropped = Array.from(e.dataTransfer.files).filter((f) =>
+                              f.type.startsWith("image/")
+                            );
+                            if (dropped.length) {
+                              uploadFiles(dropped, v.id);
+                            } else {
+                              setError("Only image files (PNG, JPG, WEBP, GIF) are allowed.");
+                            }
+                          }}
+                          className={`flex min-h-10 items-center gap-1.5 rounded-lg border p-1 transition-colors ${
+                            dragOverVariantId === v.id
+                              ? "border-[#087F5B] bg-[#E8F5EF]/50 ring-1 ring-[#087F5B]"
+                              : "border-[#E5E7EB] bg-white"
+                          }`}
+                        >
                           {v.images.map((imgUrl, imgIdx) => (
                             <div
                               key={`${imgUrl}-${imgIdx}`}
-                              className="group relative h-9 w-9 overflow-hidden rounded-md border border-[#E5E7EB] bg-white"
+                              className="group relative h-9 w-9 shrink-0 overflow-hidden rounded-md border border-[#E5E7EB] bg-white shadow-2xs"
                             >
                               <img
                                 src={imgUrl}
@@ -986,25 +1161,35 @@ export default function NewProductPage() {
                             </div>
                           ))}
 
-                          {/* Plus Upload Button for this variant */}
+                          {/* Plus Multi-Image Upload Button */}
                           <button
                             type="button"
+                            title="Click or drag & drop multiple images"
                             onClick={() => {
                               setActiveVariantUploadId(v.id);
                               variantFileInputRef.current?.click();
                             }}
-                            className="flex h-9 w-9 items-center justify-center rounded-md border border-dashed border-[#D9E2E8] bg-white text-[#64748B] hover:border-[#087F5B] hover:text-[#087F5B]"
+                            className="flex h-9 min-w-9 items-center justify-center gap-1 rounded-md border border-dashed border-[#D9E2E8] bg-[#F8FAFC] px-2 text-[#64748B] hover:border-[#087F5B] hover:bg-[#E8F5EF]/30 hover:text-[#087F5B]"
                           >
-                            <IconPlus size={14} />
+                            <IconUpload size={13} />
+                            <span className="text-[10px] font-semibold">
+                              {v.images.length === 0 ? "Upload" : "+"}
+                            </span>
                           </button>
                         </div>
                       </div>
 
-                      {/* Delete Variant Button */}
+                      {/* Delete Variant Button with Double Confirmation */}
                       <button
                         type="button"
                         aria-label="Remove variant"
-                        onClick={() => removeVariant(v.id)}
+                        onClick={() =>
+                          setDeleteTarget({
+                            type: "variant",
+                            id: v.id,
+                            name: v.color || "this color",
+                          })
+                        }
                         className="mt-4 flex h-8 w-8 items-center justify-center rounded-lg text-[#C24141] hover:bg-[#FEECEC]"
                       >
                         <IconTrash size={15} />
@@ -1015,11 +1200,11 @@ export default function NewProductPage() {
               ))}
             </div>
 
-            {/* Hidden Input for variant image uploading */}
+            {/* Hidden Input for variant multi-image uploading */}
             <input
               ref={variantFileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/png, image/jpeg, image/webp, image/gif, image/*"
               multiple
               className="hidden"
               onChange={(e) => {
@@ -1035,7 +1220,7 @@ export default function NewProductPage() {
             <div className="mt-5 flex items-start gap-2 rounded-xl border border-[#DCE3E8] bg-[#F0FDF4]/60 p-3.5 text-xs text-[#065F46]">
               <IconInfo size={16} className="mt-0.5 shrink-0 text-[#087F5B]" />
               <span>
-                Add different colors of this product. Each color can have its own images, price, stock and SKU.
+                Add different colors of this product. Drag and drop multiple photos for each color variant.
               </span>
             </div>
           </Card>
@@ -1048,37 +1233,53 @@ export default function NewProductPage() {
             <h3 className="text-sm font-semibold text-[#172033]">Publish</h3>
 
             <div className="mt-4 space-y-3.5">
-              {/* Status */}
+              {/* Single Unified Status Dropdown: Draft, Public, Private with glowing status dots */}
               <div>
-                <label className="mb-1 block text-xs font-semibold text-[#334155]">
-                  Status
+                <label className="mb-1.5 block text-xs font-semibold text-[#334155]">
+                  Product Status
                 </label>
                 <Select
                   sizeVariant="md"
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as any)}
-                >
-                  <option value="draft">● Draft</option>
-                  <option value="published">● Published</option>
-                </Select>
+                  value={publishStatus}
+                  onChange={(e) => setPublishStatus(e.target.value as any)}
+                  options={[
+                    {
+                      value: "public",
+                      label: (
+                        <span className="flex items-center gap-2 font-medium text-[#172033]">
+                          <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#10B981] shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                          <span>Public</span>
+                        </span>
+                      ),
+                    },
+                    {
+                      value: "draft",
+                      label: (
+                        <span className="flex items-center gap-2 font-medium text-[#172033]">
+                          <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#F59E0B] shadow-[0_0_8px_rgba(245,158,11,0.5)]" />
+                          <span>Draft</span>
+                        </span>
+                      ),
+                    },
+                    {
+                      value: "private",
+                      label: (
+                        <span className="flex items-center gap-2 font-medium text-[#172033]">
+                          <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#64748B]" />
+                          <span>Private</span>
+                        </span>
+                      ),
+                    },
+                  ]}
+                />
+                <p className="mt-1 text-[11px] text-[#64748B]">
+                  {publishStatus === "public" && "Visible in store and handled by AI agent"}
+                  {publishStatus === "draft" && "Saved as draft, not visible to customers"}
+                  {publishStatus === "private" && "Private product visible only to store admins"}
+                </p>
               </div>
 
-              {/* Visibility */}
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-[#334155]">
-                  Visibility
-                </label>
-                <Select
-                  sizeVariant="md"
-                  value={visibility}
-                  onChange={(e) => setVisibility(e.target.value)}
-                >
-                  <option value="public">● Public</option>
-                  <option value="private">● Private</option>
-                </Select>
-              </div>
-
-              {/* Publish immediately */}
+              {/* Publish Date */}
               <div className="border-t border-[#E5E7EB] pt-3">
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-1.5 text-[#64748B]">
@@ -1295,6 +1496,87 @@ export default function NewProductPage() {
           {saving ? "Publishing…" : "Publish Product"}
         </Button>
       </div>
+      {/* Double Confirmation Modal for Deleting Variants & Images */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
+            onClick={() => setDeleteTarget(null)}
+          />
+          <div className="relative z-10 w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-2xl animate-dropdown">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FEE2E2] text-[#DC2626]">
+              <IconTrash size={22} />
+            </div>
+            <h3 className="mt-4 text-base font-bold text-[#101828]">
+              {deleteTarget.type === "variant" && "Delete Color Variant?"}
+              {deleteTarget.type === "image" && "Remove Image?"}
+            </h3>
+            <p className="mt-1.5 text-xs leading-relaxed text-[#64748B]">
+              {deleteTarget.type === "variant" &&
+                `Are you sure you want to delete variant "${deleteTarget.name || "this color"}"? This action cannot be undone.`}
+              {deleteTarget.type === "image" &&
+                "Are you sure you want to remove this product image? You will need to re-upload it if needed."}
+            </p>
+            <div className="mt-6 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="rounded-xl border border-[#D0D5DD] bg-white px-4 py-2 text-xs font-semibold text-[#344054] shadow-2xs hover:bg-[#F8FAFC]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteTarget}
+                className="rounded-xl bg-[#DC2626] px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-[#B91C1C]"
+              >
+                Confirm Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Unsaved Changes Warning Modal */}
+      {pendingNavigationHref && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
+            onClick={() => setPendingNavigationHref(null)}
+          />
+          <div className="relative z-10 w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-2xl animate-dropdown">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FEF3C7] text-[#D97706]">
+              <IconAlertTriangle size={24} />
+            </div>
+            <h3 className="mt-4 text-base font-bold text-[#101828]">
+              Unsaved Changes Will Be Lost
+            </h3>
+            <p className="mt-1.5 text-xs leading-relaxed text-[#64748B]">
+              You have unsaved product changes or uploaded images. If you leave or close this page now, your changes will be discarded. You must save or publish the product before leaving.
+            </p>
+            <div className="mt-6 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const dest = pendingNavigationHref;
+                  setPendingNavigationHref(null);
+                  isSavedRef.current = true;
+                  router.push(dest);
+                }}
+                className="rounded-xl border border-[#D0D5DD] bg-white px-4 py-2 text-xs font-semibold text-[#DC2626] shadow-2xs hover:bg-[#FEE2E2]/30"
+              >
+                Leave Without Saving
+              </button>
+              <button
+                type="button"
+                onClick={() => setPendingNavigationHref(null)}
+                className="rounded-xl bg-[#087F5B] px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-[#066B4D]"
+              >
+                Stay & Save Product
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

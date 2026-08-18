@@ -14,6 +14,7 @@ import { downloadAttachment, getPost, getUserProfile, replyToComment, sendImage,
 import { chargeUsage, getBalance } from "../services/creditService";
 import { MessageQueue, type QueueItem } from "../services/queueService";
 import { emitPageEvent } from "../utils/events";
+import { extractNameFromGreeting } from "../utils/nameExtractor";
 
 export const webhookRouter = Router();
 const queue = new MessageQueue(3500);
@@ -68,17 +69,40 @@ function stripKnowledgeMarkers(text: string): string {
   return text.replace(KNOWLEDGE_REQUEST_RE, "").trim();
 }
 
-const SEND_IMAGES_RE = /\[SEND_IMAGES:\s*([^\]]+)\]/g;
+interface ImageRequest {
+  productIndex: number;
+  color?: string;
+}
 
-function extractImageRequests(text: string): number[] {
-  const nums: number[] = [];
+const SEND_IMAGES_RE = /\[SEND_IMAGES:\s*([^\]]+)\]/gi;
+
+function extractImageRequests(text: string): ImageRequest[] {
+  const requests: ImageRequest[] = [];
   for (const match of text.matchAll(SEND_IMAGES_RE)) {
-    for (const part of match[1].split(/[,\s]+/)) {
-      const idx = parseInt(part, 10);
-      if (!Number.isNaN(idx)) nums.push(idx);
+    const raw = match[1].trim();
+    if (raw.includes("|")) {
+      const parts = raw.split("|").map((p) => p.trim());
+      const num = parseInt(parts[0], 10);
+      let color: string | undefined;
+      for (const part of parts.slice(1)) {
+        const colorMatch = part.match(/^color:\s*(.+)$/i);
+        if (colorMatch) {
+          color = colorMatch[1].trim();
+        }
+      }
+      if (!Number.isNaN(num)) {
+        requests.push({ productIndex: num, color });
+      }
+    } else {
+      for (const part of raw.split(/[,\s]+/)) {
+        const idx = parseInt(part, 10);
+        if (!Number.isNaN(idx)) {
+          requests.push({ productIndex: idx });
+        }
+      }
     }
   }
-  return nums;
+  return requests;
 }
 
 function stripImageMarkers(text: string): string {
@@ -263,10 +287,52 @@ async function handleMessagingEvents(entry: any) {
     const page = await getPageByFbId(recipientId);
     if (!page) continue;
 
-    // Page's own message. Echoes (our own sends) are skipped so auto-takeover
-    // only triggers on a real owner reply.
+    // Page's own message (including Facebook automated greeting auto-reply)
     if (senderId === page.fbPageId) {
-      if (ev?.message?.is_echo) continue;
+      const recipientPsid = ev?.recipient?.id;
+      const messageText = ev?.message?.text;
+
+      // Extract customer name from automated greeting if present
+      if (recipientPsid && messageText) {
+        const extractedName = extractNameFromGreeting(messageText);
+        if (extractedName) {
+          const customer = await ChatService.getOrCreateCustomer(page.id, recipientPsid);
+          if (!customer.name || customer.name.toLowerCase() === "unknown" || customer.name.toLowerCase() === "unknown customer") {
+            await db
+              .update(customers)
+              .set({ name: extractedName })
+              .where(eq(customers.id, customer.id));
+            customer.name = extractedName;
+            console.log(`[webhook] Extracted customer name "${extractedName}" for PSID ${recipientPsid} from greeting auto-reply.`);
+          }
+        }
+      }
+
+      // Echoes: log to conversation so AI and dashboard know message history,
+      // but skip human takeover logic.
+      if (ev?.message?.is_echo) {
+        if (recipientPsid && messageText) {
+          const [customer] = await db
+            .select()
+            .from(customers)
+            .where(and(eq(customers.pageId, page.id), eq(customers.psid, recipientPsid)))
+            .limit(1);
+          if (customer) {
+            const [conversation] = await db
+              .select()
+              .from(conversations)
+              .where(eq(conversations.customerId, customer.id))
+              .limit(1);
+            if (conversation) {
+              await ChatService.logMessage(conversation.id, "model", messageText);
+              emitPageEvent(page.id, "message", { conversationId: conversation.id });
+            }
+          }
+        }
+        continue;
+      }
+
+      // Real owner manual reply
       const [customer] = await db
         .select()
         .from(customers)
@@ -327,13 +393,29 @@ async function handleMessagingEvents(entry: any) {
     if (!combinedText && (!attachments || attachments.length === 0)) continue;
 
     const customer = await ChatService.getOrCreateCustomer(page.id, senderId);
-    if (!customer.name) {
-      const profile = await getUserProfile(decryptToken(page.encryptedAccessToken, page.tokenIv), senderId);
-      if (profile.name) {
-        await db
-          .update(customers)
-          .set({ name: profile.name, profilePicUrl: profile.profilePicUrl ?? null })
-          .where(eq(customers.id, customer.id));
+    if (!customer.name || customer.name.toLowerCase() === "unknown" || customer.name.toLowerCase() === "unknown customer") {
+      // 1. Try extracting from text if customer introduced themselves
+      if (combinedText) {
+        const extractedFromText = extractNameFromGreeting(combinedText);
+        if (extractedFromText) {
+          await db
+            .update(customers)
+            .set({ name: extractedFromText })
+            .where(eq(customers.id, customer.id));
+          customer.name = extractedFromText;
+        }
+      }
+
+      // 2. Try Facebook Graph API user profile
+      if (!customer.name) {
+        const profile = await getUserProfile(decryptToken(page.encryptedAccessToken, page.tokenIv), senderId);
+        if (profile.name) {
+          await db
+            .update(customers)
+            .set({ name: profile.name, profilePicUrl: profile.profilePicUrl ?? null })
+            .where(eq(customers.id, customer.id));
+          customer.name = profile.name;
+        }
       }
     }
     const conversation = await ChatService.getOrCreateConversation(page.id, customer.id);
@@ -501,16 +583,100 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
         }
         if (imageRequests.length > 0) {
           const productRows = await getActiveProducts(page.id);
-          for (const n of imageRequests) {
-            const product = productRows[n - 1];
+          for (const req of imageRequests) {
+            const product = productRows[req.productIndex - 1];
             if (!product) continue;
-            const urls = product.images?.length ? product.images : [product.imageUrl];
-            for (const url of urls) {
+
+            let urlsToSend: string[] = [];
+            const targetColor = req.color?.trim().toLowerCase();
+            const productVariants: any[] = Array.isArray(product.variants) ? product.variants : [];
+
+            // 1. If explicit color variant is specified in marker
+            if (targetColor) {
+              const matchedVariant: any = productVariants.find((v: any) => {
+                if (typeof v === "string") {
+                  const s = v.toLowerCase();
+                  return s === targetColor || targetColor.includes(s) || s.includes(targetColor);
+                }
+                if (typeof v === "object" && v !== null && v.color) {
+                  const c = String(v.color).toLowerCase();
+                  return c === targetColor || targetColor.includes(c) || c.includes(targetColor);
+                }
+                return false;
+              });
+
+              if (
+                matchedVariant &&
+                typeof matchedVariant === "object" &&
+                Array.isArray(matchedVariant.images) &&
+                matchedVariant.images.length > 0
+              ) {
+                // Show ONLY the images of that specific color variant
+                urlsToSend = matchedVariant.images;
+              }
+            }
+
+            // 2. Fallback: if no color in marker, check if customer or message text mentions a specific color variant
+            if (urlsToSend.length === 0 && !targetColor) {
+              const combinedContext = `${text} ${cleanText}`.toLowerCase();
+              const banglaColors: Record<string, string[]> = {
+                black: ["কালো", "black"],
+                blue: ["নীল", "blue"],
+                white: ["সাদা", "white", "হোয়াইট"],
+                red: ["লাল", "red"],
+                green: ["সবুজ", "green"],
+                yellow: ["হলুদ", "yellow"],
+                maroon: ["মেরুন", "maroon"],
+                navy: ["নেভি", "navy"],
+                grey: ["ধূসর", "গ্রে", "grey", "gray"],
+                pink: ["গোলাপি", "পিংক", "pink"],
+              };
+
+              for (const v of productVariants) {
+                if (
+                  typeof v === "object" &&
+                  v !== null &&
+                  v.color &&
+                  Array.isArray(v.images) &&
+                  v.images.length > 0
+                ) {
+                  const colorName = String(v.color).toLowerCase();
+                  let isMentioned = combinedContext.includes(colorName);
+                  if (!isMentioned) {
+                    for (const [eng, terms] of Object.entries(banglaColors)) {
+                      if (colorName.includes(eng) && terms.some((t) => combinedContext.includes(t))) {
+                        isMentioned = true;
+                        break;
+                      }
+                    }
+                  }
+
+                  if (isMentioned) {
+                    urlsToSend = v.images;
+                    break;
+                  }
+                }
+              }
+            }
+
+            // 3. If no specific color was requested, send ONLY the main product image (not all variant images)
+            if (urlsToSend.length === 0) {
+              if (product.imageUrl) {
+                urlsToSend = [product.imageUrl];
+              } else if (product.images?.length) {
+                urlsToSend = [product.images[0]];
+              }
+            }
+
+            for (const url of urlsToSend) {
               try {
                 await sendImage(token, customer.psid, url);
                 await ChatService.logMessage(conversation.id, "model", `[Image sent: ${url}]`);
               } catch (err: any) {
-                console.error(`[sendImage] failed for ${url}:`, err?.response?.data?.error?.message ?? err?.message ?? err);
+                console.error(
+                  `[sendImage] failed for ${url}:`,
+                  err?.response?.data?.error?.message ?? err?.message ?? err
+                );
               }
             }
           }

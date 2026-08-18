@@ -138,6 +138,7 @@ export const products = pgTable(
     price: integer("price"),
     description: text("description"),
     discount: integer("discount"),
+    discountType: text("discount_type").default("percent"), // percent, fixed
     stockStatus: text("stock_status").default("available").notNull(), // available, low_stock, out_of_stock, hidden
     category: text("category"),
     sku: text("sku"),

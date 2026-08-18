@@ -26,12 +26,12 @@ import {
   IconFileText,
   IconSend,
   IconCalendar,
+  IconAlertTriangle,
 } from "@/components/Icons";
 
 interface ColorVariant {
   id: string;
   color: string;
-  colorHex: string;
   price: string;
   stock: string;
   sku: string;
@@ -49,18 +49,6 @@ const DEFAULT_CATEGORIES = [
   "Pants",
 ];
 
-const PRESET_COLORS = [
-  { name: "Black", hex: "#111827" },
-  { name: "White", hex: "#FFFFFF" },
-  { name: "Blue", hex: "#2563EB" },
-  { name: "Navy", hex: "#1E3A8A" },
-  { name: "Red", hex: "#DC2626" },
-  { name: "Green", hex: "#16A34A" },
-  { name: "Olive", hex: "#4D7C0F" },
-  { name: "Maroon", hex: "#881337" },
-  { name: "Gray", hex: "#6B7280" },
-];
-
 export default function EditProductPage() {
   const router = useRouter();
   const params = useParams();
@@ -70,11 +58,14 @@ export default function EditProductPage() {
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [sku, setSku] = useState("");
+  const [sizes, setSizes] = useState("");
   const [price, setPrice] = useState("");
   const [compareAtPrice, setCompareAtPrice] = useState("");
+  const [discount, setDiscount] = useState("");
+  const [discountType, setDiscountType] = useState<"fixed" | "percent">("fixed");
   const [stockStatus, setStockStatus] = useState("available");
   const [stockQuantity, setStockQuantity] = useState("0");
-  const [shortDescription, setShortDescription] = useState("");
+  const [productInstructions, setProductInstructions] = useState("");
   const [description, setDescription] = useState("");
 
   const [images, setImages] = useState<string[]>([]);
@@ -82,10 +73,10 @@ export default function EditProductPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const variantFileInputRef = useRef<HTMLInputElement>(null);
   const [activeVariantUploadId, setActiveVariantUploadId] = useState<string | null>(null);
+  const [dragOverVariantId, setDragOverVariantId] = useState<string | null>(null);
 
   const [variants, setVariants] = useState<ColorVariant[]>([]);
-  const [status, setStatus] = useState<"published" | "draft">("published");
-  const [visibility, setVisibility] = useState("public");
+  const [publishStatus, setPublishStatus] = useState<"public" | "draft" | "private">("public");
   const [publishDate, setPublishDate] = useState("May 16, 2025 12:00 PM");
 
   const [availableCategories, setAvailableCategories] = useState<string[]>(DEFAULT_CATEGORIES);
@@ -99,50 +90,178 @@ export default function EditProductPage() {
 
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    type: "variant" | "image";
+    id: string;
+    name?: string;
+  } | null>(null);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  const isSavedRef = useRef(false);
+  const initialDataRef = useRef<string>("");
+  const [pendingNavigationHref, setPendingNavigationHref] = useState<string | null>(null);
+
+  // Form dirty state check: true if user modified fields, uploaded images, or upload is in progress
+  const isDirty = useMemo(() => {
+    if (uploadingImage) return true;
+    if (!initialDataRef.current) return false;
+    const currentSnapshot = JSON.stringify({
+      name: name.trim(),
+      sku: sku.trim(),
+      sizes: sizes.trim(),
+      price: price.trim(),
+      compareAtPrice: compareAtPrice.trim(),
+      discount: discount.trim(),
+      discountType,
+      stockStatus,
+      stockQuantity: stockQuantity.trim(),
+      productInstructions: productInstructions.trim(),
+      description: description.trim(),
+      images,
+      variants,
+      selectedCategories,
+      tags,
+    });
+    return currentSnapshot !== initialDataRef.current;
+  }, [
+    uploadingImage,
+    name,
+    sku,
+    sizes,
+    price,
+    compareAtPrice,
+    discount,
+    discountType,
+    stockStatus,
+    stockQuantity,
+    productInstructions,
+    description,
+    images,
+    variants,
+    selectedCategories,
+    tags,
+  ]);
+
+  // Prevent closing tab / reloading page with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty && !isSavedRef.current) {
+        e.preventDefault();
+        e.returnValue = "";
+        return "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
+
+  // Intercept in-app navigation link clicks (sidebar, header, breadcrumbs)
+  useEffect(() => {
+    const handleAnchorClick = (e: MouseEvent) => {
+      if (!isDirty || isSavedRef.current) return;
+
+      const target = e.target as HTMLElement;
+      const anchor = target.closest("a");
+      if (!anchor) return;
+
+      const href = anchor.getAttribute("href");
+      if (
+        !href ||
+        href.startsWith("#") ||
+        href.startsWith("javascript:") ||
+        anchor.target === "_blank"
+      )
+        return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      setPendingNavigationHref(href);
+    };
+
+    document.addEventListener("click", handleAnchorClick, true);
+    return () => document.removeEventListener("click", handleAnchorClick, true);
+  }, [isDirty]);
 
   useEffect(() => {
     if (!id) return;
     setLoading(true);
     api(`/api/products/${id}`)
       .then((p) => {
-        setName(p.name ?? "");
-        setSku(p.sku ?? "");
-        setPrice(p.price != null ? String(p.price) : "");
-        setStockStatus(p.stockStatus ?? "available");
-        setStatus(p.stockStatus === "hidden" ? "draft" : "published");
+        const loadedName = p.name ?? "";
+        const loadedSku = p.sku ?? "";
+        const loadedPrice = p.price != null ? String(p.price) : "";
+        const loadedDiscount = p.discount != null ? String(p.discount) : "";
+        const loadedDiscountType = (p.discountType === "percent" || p.discountType === "fixed") ? p.discountType : "fixed";
+        const loadedStockStatus = p.stockStatus ?? "available";
+        const loadedStockQuantity = p.stockQuantity != null ? String(p.stockQuantity) : "0";
+        let loadedCompareAtPrice = "";
 
-        if (p.discount && p.price) {
+        setName(loadedName);
+        setSku(loadedSku);
+        setPrice(loadedPrice);
+        setDiscount(loadedDiscount);
+        setDiscountType(loadedDiscountType);
+        setStockStatus(loadedStockStatus);
+        setStockQuantity(loadedStockQuantity);
+        setPublishStatus(loadedStockStatus === "hidden" ? "draft" : "public");
+
+        if (p.discount && p.price && loadedDiscountType === "percent") {
           const comp = Math.round(p.price / (1 - p.discount / 100));
-          setCompareAtPrice(String(comp));
+          loadedCompareAtPrice = String(comp);
+          setCompareAtPrice(loadedCompareAtPrice);
         }
 
-        setDescription(p.description ?? "");
+        let rawDesc = p.description ?? "";
+        let loadedSizes = "";
+        // Extract sizes from description if present
+        const sizeMatch = rawDesc.match(/Sizes?:\s*([^\n]+)/i);
+        if (sizeMatch) {
+          loadedSizes = sizeMatch[1].trim();
+          setSizes(loadedSizes);
+          rawDesc = rawDesc.replace(/Sizes?:\s*[^\n]+\n*/i, "").trim();
+        }
+
+        let loadedInstructions = "";
+        // Extract instructions from description if present
+        const instMatch = rawDesc.match(/Instructions?:\s*([^\n]+)/i);
+        if (instMatch) {
+          loadedInstructions = instMatch[1].trim();
+          setProductInstructions(loadedInstructions);
+          rawDesc = rawDesc.replace(/Instructions?:\s*[^\n]+\n*/i, "").trim();
+        }
+
+        setDescription(rawDesc);
+
+        let loadedCategories: string[] = [];
         if (p.category) {
-          setSelectedCategories([p.category]);
+          loadedCategories = [p.category];
+          setSelectedCategories(loadedCategories);
         }
 
+        let loadedTags: string[] = [];
         if (p.keywords) {
-          const kwList = p.keywords.split(",").map((s: string) => s.trim()).filter(Boolean);
-          setTags(kwList);
+          loadedTags = p.keywords.split(",").map((s: string) => s.trim()).filter(Boolean);
+          setTags(loadedTags);
         }
 
+        let loadedImages: string[] = [];
         if (Array.isArray(p.images) && p.images.length > 0) {
-          setImages(p.images);
+          loadedImages = p.images;
+          setImages(loadedImages);
         } else if (p.imageUrl) {
-          setImages([p.imageUrl]);
+          loadedImages = [p.imageUrl];
+          setImages(loadedImages);
         }
 
         // Handle variants if array of structured objects or strings
+        let loadedVariants: ColorVariant[] = [];
         if (Array.isArray(p.variants) && p.variants.length > 0) {
-          const parsed = p.variants.map((v: any, idx: number) => {
+          loadedVariants = p.variants.map((v: any, idx: number) => {
             if (typeof v === "string") {
               return {
                 id: `v-${idx}`,
                 color: v,
-                colorHex: "#111827",
                 price: p.price != null ? String(p.price) : "",
                 stock: "0",
                 sku: "",
@@ -152,15 +271,33 @@ export default function EditProductPage() {
             return {
               id: v.id || `v-${idx}`,
               color: v.color || "Color",
-              colorHex: v.colorHex || "#111827",
               price: v.price != null ? String(v.price) : "",
               stock: v.stock != null ? String(v.stock) : "0",
               sku: v.sku || "",
               images: Array.isArray(v.images) ? v.images : [],
             };
           });
-          setVariants(parsed);
+          setVariants(loadedVariants);
         }
+
+        // Save initial snapshot for dirty checking
+        initialDataRef.current = JSON.stringify({
+          name: loadedName.trim(),
+          sku: loadedSku.trim(),
+          sizes: loadedSizes.trim(),
+          price: loadedPrice.trim(),
+          compareAtPrice: loadedCompareAtPrice.trim(),
+          discount: loadedDiscount.trim(),
+          discountType: loadedDiscountType,
+          stockStatus: loadedStockStatus,
+          stockQuantity: loadedStockQuantity.trim(),
+          productInstructions: loadedInstructions.trim(),
+          description: rawDesc.trim(),
+          images: loadedImages,
+          variants: loadedVariants,
+          selectedCategories: loadedCategories,
+          tags: loadedTags,
+        });
       })
       .catch((e) => setError(e.message || "Failed to load product"))
       .finally(() => setLoading(false));
@@ -176,11 +313,22 @@ export default function EditProductPage() {
   }
 
   async function uploadFiles(files: File[], targetVariantId?: string | null) {
-    setUploadingImage(true);
     setError("");
+
+    // Strict image file filtering: accept image/* only
+    const imageFiles = files.filter((f) => f.type.startsWith("image/"));
+    if (imageFiles.length === 0) {
+      setError("Only image files (PNG, JPG, WEBP, GIF) are allowed.");
+      return;
+    }
+    if (imageFiles.length < files.length) {
+      setError("Non-image files were skipped. Only image files were uploaded.");
+    }
+
+    setUploadingImage(true);
     try {
       const urls: string[] = [];
-      for (const file of files) {
+      for (const file of imageFiles) {
         if (file.size > 5 * 1024 * 1024) {
           throw new Error(`File ${file.name} exceeds 5MB limit.`);
         }
@@ -212,6 +360,8 @@ export default function EditProductPage() {
       setError(err.message || "Failed to upload image.");
     } finally {
       setUploadingImage(false);
+      setActiveVariantUploadId(null);
+      setDragOverVariantId(null);
     }
   }
 
@@ -271,24 +421,27 @@ export default function EditProductPage() {
   }
 
   function addVariant() {
-    const nextIndex = variants.length + 1;
-    const preset = PRESET_COLORS[nextIndex % PRESET_COLORS.length];
     setVariants((prev) => [
       ...prev,
       {
         id: `v-${Date.now()}`,
-        color: preset.name,
-        colorHex: preset.hex,
+        color: "",
         price: price || "",
         stock: "0",
-        sku: sku ? `${sku}-${preset.name.slice(0, 3).toUpperCase()}` : "",
+        sku: "",
         images: [],
       },
     ]);
   }
 
-  function removeVariant(vId: string) {
-    setVariants((prev) => prev.filter((v) => v.id !== vId));
+  function handleConfirmDeleteTarget() {
+    if (!deleteTarget) return;
+    if (deleteTarget.type === "variant") {
+      setVariants((prev) => prev.filter((v) => v.id !== deleteTarget.id));
+    } else if (deleteTarget.type === "image") {
+      setImages((prev) => prev.filter((_, idx) => String(idx) !== deleteTarget.id));
+    }
+    setDeleteTarget(null);
   }
 
   function updateVariant(vId: string, updates: Partial<ColorVariant>) {
@@ -329,12 +482,14 @@ export default function EditProductPage() {
     setTags((prev) => prev.filter((t) => t !== tagToRemove));
   }
 
-  async function handleSave(intendedStatus: "published" | "draft") {
+  async function handleSave(intendedStatus?: "published" | "draft") {
     setError("");
     const errors: Record<string, string> = {};
 
+    const effectiveStatus = intendedStatus ?? (publishStatus === "public" ? "published" : "draft");
+
     if (!name.trim()) errors.name = "Product name is required.";
-    if (intendedStatus === "published" && !price) errors.price = "Price is required.";
+    if (effectiveStatus === "published" && !price) errors.price = "Price is required.";
 
     const allCollectedImages = [
       ...images,
@@ -357,21 +512,33 @@ export default function EditProductPage() {
       const keywordsString = Array.from(
         new Set([
           name.toLowerCase(),
+          ...sizes.split(/[,/]+/).map((s) => s.trim().toLowerCase()).filter(Boolean),
           ...tags,
           ...selectedCategories.map((c) => c.toLowerCase()),
-          ...variants.map((v) => v.color.toLowerCase()),
+          ...variants.map((v) => v.color.toLowerCase()).filter(Boolean),
         ])
       )
         .filter(Boolean)
         .join(", ");
 
-      const computedDiscount =
+      const finalDiscount = discount ? Number(discount) : (
         price && compareAtPrice && Number(compareAtPrice) > Number(price)
           ? Math.round(((Number(compareAtPrice) - Number(price)) / Number(compareAtPrice)) * 100)
-          : null;
+          : null
+      );
 
       const finalStockStatus =
-        intendedStatus === "draft" ? "hidden" : stockStatus;
+        (effectiveStatus === "draft" || publishStatus === "draft" || publishStatus === "private")
+          ? "hidden"
+          : stockStatus;
+
+      const fullDescription = [
+        sizes.trim() ? `Sizes: ${sizes.trim()}` : null,
+        productInstructions.trim() ? `Instructions: ${productInstructions.trim()}` : null,
+        description.trim() ? description.trim() : null,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
 
       await api(`/api/products/${id}`, {
         method: "PATCH",
@@ -382,14 +549,16 @@ export default function EditProductPage() {
           imageUrl: primaryImg,
           images: allCollectedImages,
           price: price ? Number(price) : null,
-          discount: computedDiscount,
+          discount: finalDiscount,
+          discountType: discount ? discountType : "percent",
           stockStatus: finalStockStatus,
           category: selectedCategories[0] || null,
           variants: variants.length > 0 ? variants : null,
-          description: description.trim() || null,
+          description: fullDescription || null,
         }),
       });
 
+      isSavedRef.current = true;
       router.push("/products");
     } catch (err: any) {
       setError(err.message || "Failed to update product.");
@@ -402,6 +571,7 @@ export default function EditProductPage() {
     setSaving(true);
     try {
       await api(`/api/products/${id}`, { method: "DELETE" });
+      isSavedRef.current = true;
       router.push("/products");
     } catch (err: any) {
       setError(err.message || "Failed to delete product.");
@@ -458,7 +628,7 @@ export default function EditProductPage() {
           <Button
             disabled={saving}
             onClick={() => handleSave("published")}
-            className="h-10 rounded-lg bg-[#087F5B] px-5 text-xs font-semibold text-white shadow-xs hover:bg-[#066B4D]"
+            className="h-10 rounded-lg bg-[#087F5B] px-5 text-xs font-semibold text-white shadow-xs hover:bg-[#066B4D] active:bg-[#05573D]"
           >
             <IconSend size={15} />
             <span>{saving ? "Saving…" : "Save Changes"}</span>
@@ -473,15 +643,14 @@ export default function EditProductPage() {
         </div>
       )}
 
-      {/* Two Column Grid */}
+      {/* Main Grid */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Left Column (8 cols) */}
+        {/* Left Column */}
         <div className="space-y-6 lg:col-span-8">
           <Card className="p-6">
             <h2 className="text-base font-semibold text-[#172033]">
               Product Information
             </h2>
-
             <div className="mt-5 space-y-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
@@ -513,7 +682,8 @@ export default function EditProductPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {/* Row 2: Price (BDT) + Compare at Price (BDT) + Max Negotiable Discount */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-[#334155]">
                     Price (BDT) <span className="text-danger">*</span>
@@ -552,6 +722,69 @@ export default function EditProductPage() {
                     />
                   </div>
                 </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-[#334155]">
+                    Max Negotiable Discount
+                  </label>
+                  <div className="flex rounded-lg border border-[#D9E2E8] bg-white shadow-2xs focus-within:border-[#087F5B]">
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="0"
+                      value={discount}
+                      onChange={(e) => setDiscount(e.target.value)}
+                      className="h-10 min-w-0 flex-1 bg-transparent px-3 text-sm font-semibold text-[#172033] placeholder:text-[#94A3B8] focus:outline-none"
+                    />
+                    <div className="flex items-center border-l border-[#D9E2E8] bg-[#F8FAFC] p-1">
+                      <button
+                        type="button"
+                        onClick={() => setDiscountType("fixed")}
+                        className={`rounded px-2 py-1 text-xs font-bold transition-colors ${
+                          discountType === "fixed"
+                            ? "bg-[#087F5B] text-white shadow-xs"
+                            : "text-[#64748B] hover:text-[#172033]"
+                        }`}
+                        title="Fixed Amount (৳)"
+                      >
+                        ৳
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDiscountType("percent")}
+                        className={`rounded px-2 py-1 text-xs font-bold transition-colors ${
+                          discountType === "percent"
+                            ? "bg-[#087F5B] text-white shadow-xs"
+                            : "text-[#64748B] hover:text-[#172033]"
+                        }`}
+                        title="Percentage (%)"
+                      >
+                        %
+                      </button>
+                    </div>
+                  </div>
+                  <p className="mt-1 text-[11px] text-[#64748B]">
+                    AI sells at full price first; offers discount up to this limit
+                  </p>
+                </div>
+              </div>
+
+              {/* Product Sizes Input Box */}
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-[#334155]">
+                  Product Sizes / Size Options
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. S, M, L, XL, XXL or 38, 40, 42, 44 or Free Size"
+                  value={sizes}
+                  onChange={(e) => setSizes(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-[#D9E2E8] bg-white px-3 text-sm text-[#172033] placeholder:text-[#94A3B8] shadow-2xs focus:border-[#087F5B] focus:outline-none"
+                />
+                <p className="mt-1 text-[11px] text-[#64748B]">
+                  Enter available sizes separated by commas
+                </p>
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -582,6 +815,28 @@ export default function EditProductPage() {
                     className="h-10 w-full rounded-lg border border-[#D9E2E8] bg-white px-3 text-sm text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
                   />
                 </div>
+              </div>
+
+              {/* Product Instructions */}
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-[#334155]">
+                    Product Instructions
+                  </label>
+                  <span className="text-[11px] font-medium text-[#087F5B]">
+                    AI Sales Assistant Guidelines
+                  </span>
+                </div>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Wash in cold water, dry clean only, includes free wooden hanger, non-refundable item, 1 year warranty..."
+                  value={productInstructions}
+                  onChange={(e) => setProductInstructions(e.target.value)}
+                  className="w-full rounded-lg border border-[#D9E2E8] bg-white p-3 text-sm text-[#172033] placeholder:text-[#94A3B8] shadow-2xs focus:border-[#087F5B] focus:outline-none"
+                />
+                <p className="mt-1 text-[11px] text-[#64748B]">
+                  Specific instructions or details for this product that the AI sales assistant should strictly follow and communicate to customers.
+                </p>
               </div>
 
               <div>
@@ -644,18 +899,31 @@ export default function EditProductPage() {
           {/* Product Images */}
           <Card className="p-6">
             <h2 className="text-base font-semibold text-[#172033]">Product Images</h2>
+            <p className="mt-0.5 text-xs text-[#64748B]">
+              Only image files (PNG, JPG, WEBP, GIF) are accepted.
+            </p>
             <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const files = Array.from(e.dataTransfer.files).filter((f) =>
+                  f.type.startsWith("image/")
+                );
+                if (files.length) uploadFiles(files);
+                else setError("Only image files are allowed.");
+              }}
               onClick={() => fileInputRef.current?.click()}
               className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#D9E2E8] bg-[#F8FAFC] p-6 text-center transition-colors hover:border-[#087F5B]"
             >
               <IconUpload size={20} className="text-[#087F5B]" />
               <p className="mt-2 text-xs font-semibold text-[#172033]">
-                Upload images or drag and drop
+                Upload images <span className="font-normal text-[#64748B]">or drag and drop</span>
               </p>
+              <p className="mt-0.5 text-[11px] text-[#64748B]">PNG, JPG, WEBP up to 5MB</p>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/png, image/jpeg, image/webp, image/gif, image/*"
                 multiple
                 className="hidden"
                 onChange={(e) => {
@@ -682,7 +950,7 @@ export default function EditProductPage() {
                     <button
                       type="button"
                       aria-label="Remove image"
-                      onClick={() => setImages((prev) => prev.filter((_, idx) => idx !== i))}
+                      onClick={() => setDeleteTarget({ type: "image", id: String(i) })}
                       className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-danger text-white opacity-0 group-hover:opacity-100"
                     >
                       <IconX size={11} />
@@ -696,9 +964,14 @@ export default function EditProductPage() {
           {/* Variants (Color) */}
           <Card className="p-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-[#172033]">
-                Variants (Color)
-              </h2>
+              <div>
+                <h2 className="text-base font-semibold text-[#172033]">
+                  Variants (Color)
+                </h2>
+                <p className="mt-0.5 text-xs text-[#64748B]">
+                  Enter color names manually and drag & drop multiple images for each color.
+                </p>
+              </div>
               <Button
                 type="button"
                 onClick={addVariant}
@@ -716,26 +989,14 @@ export default function EditProductPage() {
                   className="rounded-xl border border-[#E5E7EB] bg-[#FAFCFB] p-4"
                 >
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    {/* Left: Drag + Color Name Input */}
                     <div className="flex items-center gap-2.5">
                       <div className="cursor-grab text-[#94A3B8]">
                         <IconGripVertical size={16} />
                       </div>
-                      <label
-                        className="relative flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-[#D9E2E8]"
-                        style={{ backgroundColor: v.colorHex }}
-                      >
-                        <input
-                          type="color"
-                          value={v.colorHex}
-                          onChange={(e) =>
-                            updateVariant(v.id, { colorHex: e.target.value })
-                          }
-                          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                        />
-                      </label>
-                      <div className="w-32">
+                      <div className="w-36 sm:w-40">
                         <label className="mb-1 block text-[11px] font-semibold text-[#64748B]">
-                          Color Name
+                          Color Name <span className="text-danger">*</span>
                         </label>
                         <input
                           type="text"
@@ -743,7 +1004,8 @@ export default function EditProductPage() {
                           onChange={(e) =>
                             updateVariant(v.id, { color: e.target.value })
                           }
-                          className="h-9 w-full rounded-lg border border-[#D9E2E8] bg-white px-2.5 text-xs text-[#172033]"
+                          placeholder="e.g. Black, Blue, Maroon"
+                          className="h-9 w-full rounded-lg border border-[#D9E2E8] bg-white px-3 text-xs text-[#172033] shadow-2xs focus:border-[#087F5B] focus:outline-none"
                         />
                       </div>
                     </div>
@@ -791,44 +1053,86 @@ export default function EditProductPage() {
                       </div>
                     </div>
 
+                    {/* Right: Drag-and-Drop & Multi-Image Upload Area + Delete Variant */}
                     <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1">
-                        {v.images.map((imgUrl, imgIdx) => (
-                          <div
-                            key={`${imgUrl}-${imgIdx}`}
-                            className="group relative h-9 w-9 overflow-hidden rounded-md border border-[#E5E7EB] bg-white"
-                          >
-                            <img src={imgUrl} alt="" className="h-full w-full object-cover" />
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateVariant(v.id, {
-                                  images: v.images.filter((_, i) => i !== imgIdx),
-                                })
-                              }
-                              className="absolute inset-0 flex items-center justify-center bg-danger/80 text-white opacity-0 group-hover:opacity-100"
-                            >
-                              <IconX size={10} />
-                            </button>
-                          </div>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveVariantUploadId(v.id);
-                            variantFileInputRef.current?.click();
+                      <div>
+                        <label className="mb-1 block text-[11px] font-semibold text-[#64748B]">
+                          Color Images ({v.images.length})
+                        </label>
+                        <div
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            setDragOverVariantId(v.id);
                           }}
-                          className="flex h-9 w-9 items-center justify-center rounded-md border border-dashed border-[#D9E2E8] text-[#64748B] hover:border-[#087F5B]"
+                          onDragLeave={() => {
+                            if (dragOverVariantId === v.id) setDragOverVariantId(null);
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            setDragOverVariantId(null);
+                            const dropped = Array.from(e.dataTransfer.files).filter((f) =>
+                              f.type.startsWith("image/")
+                            );
+                            if (dropped.length) {
+                              uploadFiles(dropped, v.id);
+                            } else {
+                              setError("Only image files (PNG, JPG, WEBP, GIF) are allowed.");
+                            }
+                          }}
+                          className={`flex min-h-10 items-center gap-1.5 rounded-lg border p-1 transition-colors ${
+                            dragOverVariantId === v.id
+                              ? "border-[#087F5B] bg-[#E8F5EF]/50 ring-1 ring-[#087F5B]"
+                              : "border-[#E5E7EB] bg-white"
+                          }`}
                         >
-                          <IconPlus size={14} />
-                        </button>
+                          {v.images.map((imgUrl, imgIdx) => (
+                            <div
+                              key={`${imgUrl}-${imgIdx}`}
+                              className="group relative h-9 w-9 shrink-0 overflow-hidden rounded-md border border-[#E5E7EB] bg-white shadow-2xs"
+                            >
+                              <img src={imgUrl} alt="" className="h-full w-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateVariant(v.id, {
+                                    images: v.images.filter((_, i) => i !== imgIdx),
+                                  })
+                                }
+                                className="absolute inset-0 flex items-center justify-center bg-danger/80 text-white opacity-0 group-hover:opacity-100"
+                              >
+                                <IconX size={10} />
+                              </button>
+                            </div>
+                          ))}
+
+                          <button
+                            type="button"
+                            title="Click or drag & drop multiple images"
+                            onClick={() => {
+                              setActiveVariantUploadId(v.id);
+                              variantFileInputRef.current?.click();
+                            }}
+                            className="flex h-9 min-w-9 items-center justify-center gap-1 rounded-md border border-dashed border-[#D9E2E8] bg-[#F8FAFC] px-2 text-[#64748B] hover:border-[#087F5B] hover:bg-[#E8F5EF]/30 hover:text-[#087F5B]"
+                          >
+                            <IconUpload size={13} />
+                            <span className="text-[10px] font-semibold">
+                              {v.images.length === 0 ? "Upload" : "+"}
+                            </span>
+                          </button>
+                        </div>
                       </div>
 
                       <button
                         type="button"
                         aria-label="Remove variant"
-                        onClick={() => removeVariant(v.id)}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-[#C24141] hover:bg-[#FEECEC]"
+                        onClick={() =>
+                          setDeleteTarget({
+                            type: "variant",
+                            id: v.id,
+                            name: v.color || "this color",
+                          })
+                        }
+                        className="mt-4 flex h-8 w-8 items-center justify-center rounded-lg text-[#C24141] hover:bg-[#FEECEC]"
                       >
                         <IconTrash size={15} />
                       </button>
@@ -838,10 +1142,11 @@ export default function EditProductPage() {
               ))}
             </div>
 
+            {/* Hidden Input for variant multi-image uploading */}
             <input
               ref={variantFileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/png, image/jpeg, image/webp, image/gif, image/*"
               multiple
               className="hidden"
               onChange={(e) => {
@@ -860,32 +1165,50 @@ export default function EditProductPage() {
           <Card className="p-5">
             <h3 className="text-sm font-semibold text-[#172033]">Publish</h3>
             <div className="mt-4 space-y-3.5">
+              {/* Single Unified Status Dropdown: Draft, Public, Private with glowing status dots */}
               <div>
-                <label className="mb-1 block text-xs font-semibold text-[#334155]">
-                  Status
+                <label className="mb-1.5 block text-xs font-semibold text-[#334155]">
+                  Product Status
                 </label>
                 <Select
                   sizeVariant="md"
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as any)}
-                >
-                  <option value="draft">● Draft</option>
-                  <option value="published">● Published</option>
-                </Select>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-[#334155]">
-                  Visibility
-                </label>
-                <Select
-                  sizeVariant="md"
-                  value={visibility}
-                  onChange={(e) => setVisibility(e.target.value)}
-                >
-                  <option value="public">● Public</option>
-                  <option value="private">● Private</option>
-                </Select>
+                  value={publishStatus}
+                  onChange={(e) => setPublishStatus(e.target.value as any)}
+                  options={[
+                    {
+                      value: "public",
+                      label: (
+                        <span className="flex items-center gap-2 font-medium text-[#172033]">
+                          <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#10B981] shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                          <span>Public</span>
+                        </span>
+                      ),
+                    },
+                    {
+                      value: "draft",
+                      label: (
+                        <span className="flex items-center gap-2 font-medium text-[#172033]">
+                          <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#F59E0B] shadow-[0_0_8px_rgba(245,158,11,0.5)]" />
+                          <span>Draft</span>
+                        </span>
+                      ),
+                    },
+                    {
+                      value: "private",
+                      label: (
+                        <span className="flex items-center gap-2 font-medium text-[#172033]">
+                          <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#64748B]" />
+                          <span>Private</span>
+                        </span>
+                      ),
+                    },
+                  ]}
+                />
+                <p className="mt-1 text-[11px] text-[#64748B]">
+                  {publishStatus === "public" && "Visible in store and handled by AI agent"}
+                  {publishStatus === "draft" && "Saved as draft, not visible to customers"}
+                  {publishStatus === "private" && "Private product visible only to store admins"}
+                </p>
               </div>
             </div>
           </Card>
@@ -996,27 +1319,121 @@ export default function EditProductPage() {
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal for Product */}
       {confirmDelete && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs"
           onClick={() => setConfirmDelete(false)}
         >
           <div
-            className="w-full max-w-sm rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-xl"
+            className="w-full max-w-sm rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-xl animate-dropdown"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-base font-bold text-[#101828]">Delete product permanently?</h3>
-            <p className="mt-2 text-xs text-[#64748B]">
-              &quot;{name}&quot; will be permanently deleted from catalog. This cannot be undone.
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FEE2E2] text-[#DC2626]">
+              <IconTrash size={22} />
+            </div>
+            <h3 className="mt-4 text-base font-bold text-[#101828]">Delete product permanently?</h3>
+            <p className="mt-1.5 text-xs leading-relaxed text-[#64748B]">
+              &quot;{name}&quot; will be permanently deleted from catalog. This action cannot be undone.
             </p>
-            <div className="mt-6 flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
+            <div className="mt-6 flex justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(false)}
+                className="rounded-xl border border-[#D0D5DD] bg-white px-4 py-2 text-xs font-semibold text-[#344054] shadow-2xs hover:bg-[#F8FAFC]"
+              >
                 Cancel
-              </Button>
-              <Button variant="danger" onClick={handleDelete} disabled={saving}>
-                {saving ? "Deleting…" : "Delete permanently"}
-              </Button>
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={saving}
+                className="rounded-xl bg-[#DC2626] px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-[#B91C1C]"
+              >
+                {saving ? "Deleting…" : "Confirm Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Double Confirmation Modal for Deleting Variants & Images */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
+            onClick={() => setDeleteTarget(null)}
+          />
+          <div className="relative z-10 w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-2xl animate-dropdown">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FEE2E2] text-[#DC2626]">
+              <IconTrash size={22} />
+            </div>
+            <h3 className="mt-4 text-base font-bold text-[#101828]">
+              {deleteTarget.type === "variant" && "Delete Color Variant?"}
+              {deleteTarget.type === "image" && "Remove Image?"}
+            </h3>
+            <p className="mt-1.5 text-xs leading-relaxed text-[#64748B]">
+              {deleteTarget.type === "variant" &&
+                `Are you sure you want to delete variant "${deleteTarget.name || "this color"}"? This action cannot be undone.`}
+              {deleteTarget.type === "image" &&
+                "Are you sure you want to remove this product image? You will need to re-upload it if needed."}
+            </p>
+            <div className="mt-6 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="rounded-xl border border-[#D0D5DD] bg-white px-4 py-2 text-xs font-semibold text-[#344054] shadow-2xs hover:bg-[#F8FAFC]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteTarget}
+                className="rounded-xl bg-[#DC2626] px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-[#B91C1C]"
+              >
+                Confirm Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Unsaved Changes Warning Modal */}
+      {pendingNavigationHref && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
+            onClick={() => setPendingNavigationHref(null)}
+          />
+          <div className="relative z-10 w-full max-w-md rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-2xl animate-dropdown">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#FEF3C7] text-[#D97706]">
+              <IconAlertTriangle size={24} />
+            </div>
+            <h3 className="mt-4 text-base font-bold text-[#101828]">
+              Unsaved Changes Will Be Lost
+            </h3>
+            <p className="mt-1.5 text-xs leading-relaxed text-[#64748B]">
+              You have unsaved product changes or uploaded images. If you leave or close this page now, your changes will be discarded. You must save or update the product before leaving.
+            </p>
+            <div className="mt-6 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const dest = pendingNavigationHref;
+                  setPendingNavigationHref(null);
+                  isSavedRef.current = true;
+                  router.push(dest);
+                }}
+                className="rounded-xl border border-[#D0D5DD] bg-white px-4 py-2 text-xs font-semibold text-[#DC2626] shadow-2xs hover:bg-[#FEE2E2]/30"
+              >
+                Leave Without Saving
+              </button>
+              <button
+                type="button"
+                onClick={() => setPendingNavigationHref(null)}
+                className="rounded-xl bg-[#087F5B] px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-[#066B4D]"
+              >
+                Stay & Save Product
+              </button>
             </div>
           </div>
         </div>

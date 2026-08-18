@@ -419,80 +419,150 @@ export default function CreditsPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC] text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">
-                <tr>
-                  <th className="px-5 py-3">Date & Time</th>
-                  <th className="px-4 py-3">Plan</th>
-                  <th className="px-4 py-3">Amount</th>
-                  <th className="px-4 py-3">Credits Added</th>
-                  <th className="px-4 py-3">Payment Method</th>
-                  <th className="px-4 py-3">Transaction ID</th>
-                  <th className="px-4 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#E5E7EB]">
-                {history.map((p) => {
-                  const statusInfo =
-                    p.status === "paid" || p.status === "success"
-                      ? { label: "Successful", bg: "bg-[#E8F7EF]", text: "text-[#087F5B]" }
-                      : p.status === "failed"
-                      ? { label: "Failed", bg: "bg-[#FDECEC]", text: "text-[#C9363E]" }
-                      : { label: "Pending", bg: "bg-[#FFF4E5]", text: "text-[#C77700]" };
+          <>
+            {/* Desktop Table View (>= 768px) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC] text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">
+                  <tr>
+                    <th className="px-5 py-3">Date & Time</th>
+                    <th className="px-4 py-3">Plan</th>
+                    <th className="px-4 py-3">Amount</th>
+                    <th className="px-4 py-3">Credits Added</th>
+                    <th className="px-4 py-3">Payment Method</th>
+                    <th className="px-4 py-3">Transaction ID</th>
+                    <th className="px-4 py-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E5E7EB]">
+                  {history.map((p) => {
+                    const statusInfo =
+                      p.status === "paid" || p.status === "success"
+                        ? { label: "Successful", bg: "bg-[#E8F7EF]", text: "text-[#087F5B]" }
+                        : p.status === "failed"
+                        ? { label: "Failed", bg: "bg-[#FDECEC]", text: "text-[#C9363E]" }
+                        : { label: "Pending", bg: "bg-[#FFF4E5]", text: "text-[#C77700]" };
 
-                  return (
-                    <tr key={p.id} className="hover:bg-[#FAFCFB]">
-                      <td className="px-5 py-3.5 text-[#334155]">
-                        <div className="font-medium text-[#172033]">
+                    return (
+                      <tr key={p.id} className="hover:bg-[#FAFCFB]">
+                        <td className="px-5 py-3.5 text-[#334155]">
+                          <div className="font-medium text-[#172033]">
+                            {new Date(p.createdAt).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </div>
+                          <div className="text-[11px] text-[#64748B]">
+                            {new Date(p.createdAt).toLocaleTimeString("en-US", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true,
+                            })}
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-3.5 font-semibold capitalize text-[#172033]">
+                          {p.package}
+                        </td>
+
+                        <td className="px-4 py-3.5 font-display font-bold text-[#172033]">
+                          {fmtTaka(p.amount)}
+                        </td>
+
+                        <td className="px-4 py-3.5 font-mono text-[#087F5B] font-semibold">
+                          +{p.creditsGranted.toLocaleString("en-IN")}
+                        </td>
+
+                        <td className="px-4 py-3.5 font-medium uppercase text-[#334155]">
+                          {p.provider}
+                        </td>
+
+                        <td className="px-4 py-3.5 font-mono text-[11px] text-[#64748B]">
+                          {p.providerTxnId || `#TXN-${p.id.slice(0, 8).toUpperCase()}`}
+                        </td>
+
+                        <td className="px-4 py-3.5">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${statusInfo.bg} ${statusInfo.text}`}
+                          >
+                            {statusInfo.label}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card List View (< 768px) */}
+            <div className="divide-y divide-[#E5E7EB] md:hidden">
+              {history.map((p) => {
+                const statusInfo =
+                  p.status === "paid" || p.status === "success"
+                    ? { label: "Successful", bg: "bg-[#E8F7EF]", text: "text-[#087F5B]" }
+                    : p.status === "failed"
+                    ? { label: "Failed", bg: "bg-[#FDECEC]", text: "text-[#C9363E]" }
+                    : { label: "Pending", bg: "bg-[#FFF4E5]", text: "text-[#C77700]" };
+
+                return (
+                  <div key={p.id} className="p-4 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="font-bold text-sm text-[#101828] capitalize">
+                          {p.package} Package
+                        </div>
+                        <div className="text-[11px] text-[#64748B]">
                           {new Date(p.createdAt).toLocaleDateString("en-US", {
                             month: "short",
                             day: "numeric",
                             year: "numeric",
-                          })}
-                        </div>
-                        <div className="text-[11px] text-[#64748B]">
+                          })}{" "}
+                          ·{" "}
                           {new Date(p.createdAt).toLocaleTimeString("en-US", {
                             hour: "2-digit",
                             minute: "2-digit",
                             hour12: true,
                           })}
                         </div>
-                      </td>
+                      </div>
 
-                      <td className="px-4 py-3.5 font-semibold capitalize text-[#172033]">
-                        {p.package}
-                      </td>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusInfo.bg} ${statusInfo.text}`}
+                      >
+                        {statusInfo.label}
+                      </span>
+                    </div>
 
-                      <td className="px-4 py-3.5 font-display font-bold text-[#172033]">
-                        {fmtTaka(p.amount)}
-                      </td>
+                    <div className="flex items-center justify-between rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-3 text-xs">
+                      <div>
+                        <div className="text-[10px] text-[#64748B]">Credits Added</div>
+                        <div className="font-mono text-xs font-bold text-[#087F5B]">
+                          +{p.creditsGranted.toLocaleString("en-IN")}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[10px] text-[#64748B]">Amount Paid</div>
+                        <div className="font-display text-sm font-bold text-[#101828]">
+                          {fmtTaka(p.amount)}
+                        </div>
+                      </div>
+                    </div>
 
-                      <td className="px-4 py-3.5 font-mono text-[#087F5B] font-semibold">
-                        +{p.creditsGranted.toLocaleString("en-IN")}
-                      </td>
-
-                      <td className="px-4 py-3.5 font-medium uppercase text-[#334155]">
+                    <div className="flex items-center justify-between text-[11px] text-[#64748B]">
+                      <span className="uppercase font-semibold text-[#334155]">
                         {p.provider}
-                      </td>
-
-                      <td className="px-4 py-3.5 font-mono text-[11px] text-[#64748B]">
+                      </span>
+                      <span className="font-mono text-[10px]">
                         {p.providerTxnId || `#TXN-${p.id.slice(0, 8).toUpperCase()}`}
-                      </td>
-
-                      <td className="px-4 py-3.5">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${statusInfo.bg} ${statusInfo.text}`}
-                        >
-                          {statusInfo.label}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </Card>
     </div>

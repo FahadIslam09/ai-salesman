@@ -282,28 +282,30 @@ function Shell({ children, user }: { children: ReactNode; user: UserProfile | nu
   });
 
   return (
-    <div className="flex min-h-screen bg-[#F8FAF9]">
-      {/* Desktop Sidebar (260px) */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[260px] flex-col border-r border-[#E2E8F0] bg-white md:flex">
+    <div className="flex min-h-screen bg-[#F8FAF9] overflow-x-hidden">
+      {/* Desktop Sidebar (260px) - Fixed on Desktop (>= 1280px / xl) */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[260px] flex-col border-r border-[#E2E8F0] bg-white xl:flex">
         <SidebarContent pathname={pathname} credits={credits} user={user} />
       </aside>
 
-      {/* Mobile Drawer */}
+      {/* Responsive Navigation Drawer (Tablet & Mobile < 1280px) */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden">
+        <div className="fixed inset-0 z-50 flex xl:hidden animate-in fade-in duration-200">
+          {/* Backdrop overlay */}
           <div
             className="fixed inset-0 bg-ink/40 backdrop-blur-xs transition-opacity"
             onClick={() => setMobileOpen(false)}
           />
-          <div className="relative flex w-[280px] max-w-[85vw] flex-1 flex-col bg-white shadow-2xl">
+          {/* Slide-over Drawer Panel */}
+          <div className="relative flex w-[285px] max-w-[85vw] flex-1 flex-col bg-white shadow-2xl animate-in slide-in-from-left duration-250">
             <div className="absolute top-3.5 right-3 z-10">
               <button
                 type="button"
                 aria-label="Close sidebar"
                 onClick={() => setMobileOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-mute hover:bg-paper hover:text-ink"
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-mute hover:bg-paper hover:text-ink transition-colors"
               >
-                <IconX size={18} />
+                <IconX size={20} />
               </button>
             </div>
             <SidebarContent
@@ -317,33 +319,33 @@ function Shell({ children, user }: { children: ReactNode; user: UserProfile | nu
       )}
 
       {/* Main Content Area */}
-      <div className="flex flex-1 flex-col md:ml-[260px]">
-        {/* Sticky Top Header (72px) */}
-        <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-[#E2E8F0] bg-white/95 px-4 sm:px-6 lg:px-8 backdrop-blur-md">
-          {/* Header Left */}
-          <div className="flex items-center gap-3">
+      <div className="flex flex-1 flex-col xl:ml-[260px] min-w-0">
+        {/* Sticky Top Header (64px mobile / 72px desktop) */}
+        <header className="sticky top-0 z-20 flex h-16 sm:h-[72px] items-center justify-between border-b border-[#E2E8F0] bg-white/95 px-3.5 sm:px-6 lg:px-8 backdrop-blur-md">
+          {/* Header Left: Hamburger Menu + Active Title */}
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <button
               type="button"
               aria-label="Open navigation menu"
               onClick={() => setMobileOpen(true)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-line text-ink md:hidden hover:bg-paper"
+              className="flex h-9.5 w-9.5 items-center justify-center rounded-xl border border-line text-ink xl:hidden hover:bg-paper active:bg-[#F1F5F4] transition-colors"
             >
-              <IconMenu size={18} />
+              <IconMenu size={19} />
             </button>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight text-ink">
+            <div className="min-w-0">
+              <h1 className="truncate text-lg sm:text-xl font-bold tracking-tight text-ink">
                 {activePageMeta?.label ?? "Dashboard"}
               </h1>
               {pathname === "/overview" && (
-                <p className="hidden text-xs text-mute sm:block">
+                <p className="hidden text-xs text-mute md:block truncate">
                   Welcome back, <span className="font-medium text-ink">{userName}</span>! Here&apos;s what&apos;s happening with your business.
                 </p>
               )}
             </div>
           </div>
 
-          {/* Header Right */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          {/* Header Right: Page Selector, Date, Notifications, Profile */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5">
             {/* Facebook Page Selector */}
             {pages.length > 0 && (
               <CustomDropdown
@@ -366,16 +368,16 @@ function Shell({ children, user }: { children: ReactNode; user: UserProfile | nu
                 renderTrigger={(selected) => (
                   <button
                     type="button"
-                    className="flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-[#DCE3E8] bg-white px-3 text-xs font-semibold text-[#172033] shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition-all duration-150 hover:border-[#CBD5E1] hover:bg-[#FAFBFB] focus:border-leaf focus:ring-2 focus:ring-leaf/15 focus:outline-none"
+                    className="flex h-9 cursor-pointer items-center gap-1.5 sm:gap-2 rounded-xl border border-[#DCE3E8] bg-white px-2.5 sm:px-3 text-xs font-semibold text-[#172033] shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition-all duration-150 hover:border-[#CBD5E1] hover:bg-[#FAFBFB] focus:border-leaf focus:ring-2 focus:ring-leaf/15 focus:outline-none"
                   >
-                    <span className="relative flex h-2 w-2">
+                    <span className="relative flex h-2 w-2 shrink-0">
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-leaf opacity-75" />
                       <span className="relative inline-flex h-2 w-2 rounded-full bg-leaf" />
                     </span>
-                    <span className="max-w-[120px] truncate font-semibold text-[#172033] sm:max-w-[180px]">
+                    <span className="max-w-[85px] xs:max-w-[120px] sm:max-w-[180px] truncate font-semibold text-[#172033]">
                       {selected?.label ?? "Select Page"}
                     </span>
-                    <IconChevronDown size={14} className="text-[#94A3B8]" />
+                    <IconChevronDown size={13} className="text-[#94A3B8] shrink-0" />
                   </button>
                 )}
                 renderFooter={(close) => (
@@ -395,10 +397,10 @@ function Shell({ children, user }: { children: ReactNode; user: UserProfile | nu
               />
             )}
 
-            {/* Date Range Selector */}
+            {/* Date Range Selector (Hidden on Mobile) */}
             <button
               type="button"
-              className="hidden h-9 items-center gap-2 rounded-lg border border-line bg-surface px-3 text-xs font-medium text-ink shadow-2xs transition-colors sm:flex hover:bg-paper"
+              className="hidden h-9 items-center gap-2 rounded-xl border border-line bg-surface px-3 text-xs font-medium text-ink shadow-2xs transition-colors md:flex hover:bg-paper"
             >
               <IconCalendar size={14} className="text-mute" />
               <span>{formattedDateRange}</span>
@@ -407,15 +409,15 @@ function Shell({ children, user }: { children: ReactNode; user: UserProfile | nu
             {/* Notification Bell */}
             <Link
               href="/notifications"
-              className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface text-mute shadow-2xs transition-colors hover:bg-paper hover:text-ink"
+              className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-surface text-mute shadow-2xs transition-colors hover:bg-paper hover:text-ink"
               title="Notifications"
             >
               <IconBell size={16} />
               <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-leaf ring-2 ring-surface" />
             </Link>
 
-            {/* User Profile Pill */}
-            <div className="flex items-center gap-2 rounded-lg border border-line bg-surface py-1 pr-2.5 pl-1.5 shadow-2xs">
+            {/* User Profile Avatar Pill */}
+            <div className="flex items-center gap-2 rounded-xl border border-line bg-surface py-1 pr-1.5 sm:pr-2.5 pl-1 shadow-2xs">
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-leaf-soft text-xs font-bold text-leaf">
                 {(user?.name || user?.email || "U")[0]?.toUpperCase()}
               </div>
@@ -428,8 +430,8 @@ function Shell({ children, user }: { children: ReactNode; user: UserProfile | nu
         </header>
 
         {/* Page Main Content Container */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">
-          <div className="mx-auto max-w-[1440px]">{children}</div>
+        <main className="flex-1 p-3.5 sm:p-5 lg:p-8 min-w-0">
+          <div className="mx-auto max-w-[1440px] w-full min-w-0">{children}</div>
         </main>
       </div>
     </div>

@@ -39,9 +39,9 @@ export default function InboxPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-3">
-        <Input placeholder="Search name or PSID…" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-xs" />
-        <Select sizeVariant="md" value={status} onChange={(e) => setStatus(e.target.value)} wrapperClassName="max-w-[180px]">
+      <div className="flex flex-col sm:flex-row gap-3">
+        <Input placeholder="Search name or PSID…" value={q} onChange={(e) => setQ(e.target.value)} className="w-full sm:max-w-xs" />
+        <Select sizeVariant="md" value={status} onChange={(e) => setStatus(e.target.value)} wrapperClassName="w-full sm:max-w-[180px]">
           <option value="">All statuses</option>
           <option value="new">New</option>
           <option value="interested">Interested</option>

@@ -36,7 +36,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <p className="text-sm text-mute">Business and AI performance over time</p>
         <Select
           sizeVariant="sm"
@@ -52,7 +52,7 @@ export default function AnalyticsPage() {
         </Select>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Stat label="Total customers" value={data.customers?.total ?? 0} sub={`${data.customers?.newCustomers ?? 0} new this period`} />
         <Stat label="Conversations" value={data.conversations?.conversations ?? 0} sub={`${data.conversations?.aiReplies ?? 0} AI replies`} />
         <Stat label="Sales" value={data.sales?.count ?? 0} sub={`${data.sales?.aiAssisted ?? 0} AI-assisted`} />

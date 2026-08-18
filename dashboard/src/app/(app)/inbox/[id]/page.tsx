@@ -115,7 +115,7 @@ export default function ConversationDetailPage() {
           {conv.messages.map((m) => (
             <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               <div
-                className={`max-w-[70%] rounded-2xl px-4 py-2.5 text-sm ${
+                className={`max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-2.5 text-sm ${
                   m.role === "user"
                     ? "bg-leaf text-white"
                     : m.role === "human"

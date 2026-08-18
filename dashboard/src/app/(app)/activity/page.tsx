@@ -854,110 +854,205 @@ export default function ActivityPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC] text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">
-                <tr>
-                  <th className="w-12 px-4 py-3 text-center">#</th>
-                  <th className="px-4 py-3">Action</th>
-                  <th className="px-4 py-3">Details</th>
-                  <th className="px-4 py-3">Tokens In</th>
-                  <th className="px-4 py-3">Tokens Out</th>
-                  <th className="px-4 py-3">Credits</th>
-                  <th className="px-4 py-3">When</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#E5E7EB]">
-                {displayRows.map((r, idx) => {
-                  const cfg = getKindConfig(r.kind);
-                  const amount = r.creditsUsed ?? r.creditsDeducted;
-                  const credits =
-                    amount != null && amount !== 0
-                      ? `-${amount.toLocaleString("en-IN")}`
-                      : "—";
+          <>
+            {/* Desktop Table View (>= 768px) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC] text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">
+                  <tr>
+                    <th className="w-12 px-4 py-3 text-center">#</th>
+                    <th className="px-4 py-3">Action</th>
+                    <th className="px-4 py-3">Details</th>
+                    <th className="px-4 py-3">Tokens In</th>
+                    <th className="px-4 py-3">Tokens Out</th>
+                    <th className="px-4 py-3">Credits</th>
+                    <th className="px-4 py-3">When</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E5E7EB]">
+                  {displayRows.map((r, idx) => {
+                    const cfg = getKindConfig(r.kind);
+                    const amount = r.creditsUsed ?? r.creditsDeducted;
+                    const credits =
+                      amount != null && amount !== 0
+                        ? `-${amount.toLocaleString("en-IN")}`
+                        : "—";
 
-                  return (
-                    <tr
-                      key={r.id}
-                      onClick={() => setSelectedActivity(r)}
-                      className="cursor-pointer transition-colors hover:bg-[#FAFCFB]"
-                    >
-                      <td className="px-4 py-3.5 text-center font-mono text-[11px] text-[#94A3B8]">
-                        {(page - 1) * pageSize + idx + 1}
-                      </td>
+                    return (
+                      <tr
+                        key={r.id}
+                        onClick={() => setSelectedActivity(r)}
+                        className="cursor-pointer transition-colors hover:bg-[#FAFCFB]"
+                      >
+                        <td className="px-4 py-3.5 text-center font-mono text-[11px] text-[#94A3B8]">
+                          {(page - 1) * pageSize + idx + 1}
+                        </td>
 
-                      {/* Action Pill */}
-                      <td className="px-4 py-3.5">
-                        <span
-                          className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold ${cfg.bg} ${cfg.text}`}
-                        >
-                          <span className="text-xs">{cfg.icon}</span>
-                          <span>{cfg.label}</span>
-                        </span>
-                      </td>
+                        {/* Action Pill */}
+                        <td className="px-4 py-3.5">
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold ${cfg.bg} ${cfg.text}`}
+                          >
+                            <span className="text-xs">{cfg.icon}</span>
+                            <span>{cfg.label}</span>
+                          </span>
+                        </td>
 
-                      {/* Details Description */}
-                      <td className="max-w-[280px] px-4 py-3.5">
-                        <div className="truncate font-medium text-[#172033]">
-                          {r.kind === "inbox_reply"
-                            ? "Replied to customer inquiry"
-                            : r.kind === "order_extraction"
-                            ? "Extracted order parameters from chat"
-                            : r.kind === "summarization"
-                            ? "Summarized conversation thread"
-                            : r.kind === "follow_up"
-                            ? "Scheduled follow-up reminder"
-                            : r.kind === "voice_transcription"
-                            ? "Transcribed customer voice message"
-                            : "Processed automated AI action"}
-                        </div>
-                        {r.model && (
-                          <div className="text-[11px] text-[#64748B]">
-                            Model: {r.model}
+                        {/* Details Description */}
+                        <td className="max-w-[280px] px-4 py-3.5">
+                          <div className="truncate font-medium text-[#172033]">
+                            {r.kind === "inbox_reply"
+                              ? "Replied to customer inquiry"
+                              : r.kind === "order_extraction"
+                              ? "Extracted order parameters from chat"
+                              : r.kind === "summarization"
+                              ? "Summarized conversation thread"
+                              : r.kind === "follow_up"
+                              ? "Scheduled follow-up reminder"
+                              : r.kind === "voice_transcription"
+                              ? "Transcribed customer voice message"
+                              : "Processed automated AI action"}
                           </div>
-                        )}
-                      </td>
+                          {r.model && (
+                            <div className="text-[11px] text-[#64748B]">
+                              Model: {r.model}
+                            </div>
+                          )}
+                        </td>
 
-                      {/* Tokens In */}
-                      <td className="px-4 py-3.5 font-mono text-[#334155]">
-                        {(r.tokensIn ?? 0).toLocaleString("en-IN")}
-                      </td>
+                        {/* Tokens In */}
+                        <td className="px-4 py-3.5 font-mono text-[#334155]">
+                          {(r.tokensIn ?? 0).toLocaleString("en-IN")}
+                        </td>
 
-                      {/* Tokens Out */}
-                      <td className="px-4 py-3.5 font-mono text-[#334155]">
-                        {(r.tokensOut ?? 0).toLocaleString("en-IN")}
-                      </td>
+                        {/* Tokens Out */}
+                        <td className="px-4 py-3.5 font-mono text-[#334155]">
+                          {(r.tokensOut ?? 0).toLocaleString("en-IN")}
+                        </td>
 
-                      {/* Credits */}
-                      <td className="px-4 py-3.5 font-semibold text-[#172033]">
-                        {credits}
-                      </td>
+                        {/* Credits */}
+                        <td className="px-4 py-3.5 font-semibold text-[#172033]">
+                          {credits}
+                        </td>
 
-                      {/* When */}
-                      <td className="px-4 py-3.5 text-[#64748B]">
+                        {/* When */}
+                        <td className="px-4 py-3.5 text-[#64748B]">
+                          {timeAgo(r.createdAt)}
+                        </td>
+
+                        {/* Action View button */}
+                        <td className="px-4 py-3.5 text-right">
+                          <Button
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedActivity(r);
+                            }}
+                            className="h-7 border-[#D9E2E8] bg-white px-2.5 text-xs font-semibold text-[#172033] shadow-2xs hover:bg-[#F8FAFC]"
+                          >
+                            View
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card List View (< 768px) */}
+            <div className="divide-y divide-[#E5E7EB] md:hidden">
+              {displayRows.map((r) => {
+                const cfg = getKindConfig(r.kind);
+                const amount = r.creditsUsed ?? r.creditsDeducted;
+                const credits =
+                  amount != null && amount !== 0
+                    ? `-${amount.toLocaleString("en-IN")}`
+                    : "—";
+
+                return (
+                  <div
+                    key={r.id}
+                    onClick={() => setSelectedActivity(r)}
+                    className="p-4 space-y-3 cursor-pointer active:bg-[#FAFCFB] transition-colors"
+                  >
+                    {/* Header: Action pill + Time */}
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold ${cfg.bg} ${cfg.text}`}
+                      >
+                        <span>{cfg.icon}</span>
+                        <span>{cfg.label}</span>
+                      </span>
+
+                      <span className="text-[11px] text-[#64748B]">
                         {timeAgo(r.createdAt)}
-                      </td>
+                      </span>
+                    </div>
 
-                      {/* Action View button */}
-                      <td className="px-4 py-3.5 text-right">
-                        <Button
-                          variant="ghost"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedActivity(r);
-                          }}
-                          className="h-7 border-[#D9E2E8] bg-white px-2.5 text-xs font-semibold text-[#172033] shadow-2xs hover:bg-[#F8FAFC]"
-                        >
-                          View
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                    {/* Details Box */}
+                    <div className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-3 text-xs space-y-1">
+                      <div className="font-medium text-[#172033]">
+                        {r.kind === "inbox_reply"
+                          ? "Replied to customer inquiry"
+                          : r.kind === "order_extraction"
+                          ? "Extracted order parameters from chat"
+                          : r.kind === "summarization"
+                          ? "Summarized conversation thread"
+                          : r.kind === "follow_up"
+                          ? "Scheduled follow-up reminder"
+                          : r.kind === "voice_transcription"
+                          ? "Transcribed customer voice message"
+                          : "Processed automated AI action"}
+                      </div>
+                      {r.model && (
+                        <div className="text-[11px] text-[#64748B]">
+                          Model: {r.model}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Metrics Grid */}
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="rounded-lg bg-[#F1F5F9] p-2">
+                        <div className="text-[10px] text-[#64748B]">Tokens In</div>
+                        <div className="font-mono text-xs font-semibold text-[#101828]">
+                          {(r.tokensIn ?? 0).toLocaleString("en-IN")}
+                        </div>
+                      </div>
+                      <div className="rounded-lg bg-[#F1F5F9] p-2">
+                        <div className="text-[10px] text-[#64748B]">Tokens Out</div>
+                        <div className="font-mono text-xs font-semibold text-[#101828]">
+                          {(r.tokensOut ?? 0).toLocaleString("en-IN")}
+                        </div>
+                      </div>
+                      <div className="rounded-lg bg-[#F1F5F9] p-2">
+                        <div className="text-[10px] text-[#64748B]">Credits</div>
+                        <div className="font-mono text-xs font-bold text-[#087F5B]">
+                          {credits}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer: View Details Button */}
+                    <div className="flex justify-end pt-1">
+                      <Button
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedActivity(r);
+                        }}
+                        className="h-8 w-full border-[#D9E2E8] bg-white text-xs font-semibold text-[#172033] shadow-2xs hover:bg-[#F8FAFC]"
+                      >
+                        View Full Trace Details
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
 
         {/* Bottom Pagination Bar */}

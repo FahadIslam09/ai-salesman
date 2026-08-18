@@ -495,176 +495,300 @@ export default function OrdersPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC] text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">
-                <tr>
-                  <th className="w-10 px-4 py-3 text-center">
-                    <input
-                      type="checkbox"
-                      checked={allPageSelected}
-                      onChange={toggleSelectAll}
-                      className="h-3.5 w-3.5 rounded-xs border-[#D9E2E8] text-[#087F5B] accent-[#087F5B]"
-                    />
-                  </th>
-                  <th className="px-4 py-3">Order ID</th>
-                  <th className="px-4 py-3">Customer</th>
-                  <th className="px-4 py-3">Product</th>
-                  <th className="px-4 py-3">Amount</th>
-                  <th className="px-4 py-3">Payment</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Received At</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#E5E7EB]">
-                {paginatedRows.map((o) => {
-                  const isChecked = selectedIds.includes(o.id);
-                  const isSelected = selectedOrderId === o.id;
+          <>
+            {/* Desktop Table View (>= 768px) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC] text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">
+                  <tr>
+                    <th className="w-10 px-4 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={allPageSelected}
+                        onChange={toggleSelectAll}
+                        className="h-3.5 w-3.5 rounded-xs border-[#D9E2E8] text-[#087F5B] accent-[#087F5B]"
+                      />
+                    </th>
+                    <th className="px-4 py-3">Order ID</th>
+                    <th className="px-4 py-3">Customer</th>
+                    <th className="px-4 py-3">Product</th>
+                    <th className="px-4 py-3">Amount</th>
+                    <th className="px-4 py-3">Payment</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Received At</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E5E7EB]">
+                  {paginatedRows.map((o) => {
+                    const isChecked = selectedIds.includes(o.id);
+                    const isSelected = selectedOrderId === o.id;
 
-                  // Status pill styling
-                  const statusInfo =
-                    o.status === "confirmed"
-                      ? { label: "Verified", bg: "bg-[#E8F7EF]", text: "text-[#087F5B]" }
-                      : o.status === "rejected"
-                      ? { label: "Rejected", bg: "bg-[#FDECEC]", text: "text-[#C9363E]" }
-                      : { label: "Pending", bg: "bg-[#FFF4E5]", text: "text-[#C77700]" };
+                    // Status pill styling
+                    const statusInfo =
+                      o.status === "confirmed"
+                        ? { label: "Verified", bg: "bg-[#E8F7EF]", text: "text-[#087F5B]" }
+                        : o.status === "rejected"
+                        ? { label: "Rejected", bg: "bg-[#FDECEC]", text: "text-[#C9363E]" }
+                        : { label: "Pending", bg: "bg-[#FFF4E5]", text: "text-[#C77700]" };
 
-                  // Payment method label
-                  const paymentDisplay =
-                    o.paymentMethod === "cod"
-                      ? "COD"
-                      : o.paymentMethod === "full"
-                      ? "Full Payment"
-                      : o.paymentMethod
-                      ? o.paymentMethod.toUpperCase()
-                      : "COD";
+                    // Payment method label
+                    const paymentDisplay =
+                      o.paymentMethod === "cod"
+                        ? "COD"
+                        : o.paymentMethod === "full"
+                        ? "Full Payment"
+                        : o.paymentMethod
+                        ? o.paymentMethod.toUpperCase()
+                        : "COD";
 
-                  return (
-                    <tr
-                      key={o.id}
-                      onClick={() => openDrawer(o.id)}
-                      className={`cursor-pointer transition-colors hover:bg-[#FAFCFB] ${
-                        isSelected ? "bg-[#E8F5EF]/40" : ""
-                      }`}
-                    >
-                      {/* Checkbox */}
-                      <td
-                        className="px-4 py-3.5 text-center"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleSelectRow(o.id);
-                        }}
+                    return (
+                      <tr
+                        key={o.id}
+                        onClick={() => openDrawer(o.id)}
+                        className={`cursor-pointer transition-colors hover:bg-[#FAFCFB] ${
+                          isSelected ? "bg-[#E8F5EF]/40" : ""
+                        }`}
                       >
+                        {/* Checkbox */}
+                        <td
+                          className="px-4 py-3.5 text-center"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSelectRow(o.id);
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleSelectRow(o.id)}
+                            className="h-3.5 w-3.5 rounded-xs border-[#D9E2E8] text-[#087F5B] accent-[#087F5B]"
+                          />
+                        </td>
+
+                        {/* Order ID */}
+                        <td className="px-4 py-3.5">
+                          <div className="font-semibold text-[#101828]">
+                            {fmtOrderId(o.id)}
+                          </div>
+                          {o.phone && (
+                            <div className="text-[11px] text-[#64748B]">{o.phone}</div>
+                          )}
+                        </td>
+
+                        {/* Customer */}
+                        <td className="px-4 py-3.5">
+                          <div className="font-semibold text-[#172033]">
+                            {o.customerName ?? "Unknown customer"}
+                          </div>
+                          {o.phone && (
+                            <div className="text-[11px] text-[#64748B]">{o.phone}</div>
+                          )}
+                        </td>
+
+                        {/* Product & Variant */}
+                        <td className="max-w-[220px] px-4 py-3.5">
+                          <div className="truncate font-medium text-[#172033]" title={o.productName ?? ""}>
+                            {o.productName ?? "—"}
+                          </div>
+                          {o.sizeVariant && (
+                            <div className="text-[11px] text-[#64748B]">
+                              ({o.sizeVariant})
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Amount */}
+                        <td className="px-4 py-3.5 font-display font-bold text-[#172033]">
+                          {fmtTaka(o.totalAmount)}
+                        </td>
+
+                        {/* Payment Method */}
+                        <td className="px-4 py-3.5 font-medium text-[#334155]">
+                          {paymentDisplay}
+                        </td>
+
+                        {/* Status Badge */}
+                        <td className="px-4 py-3.5">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${statusInfo.bg} ${statusInfo.text}`}
+                          >
+                            {statusInfo.label}
+                          </span>
+                        </td>
+
+                        {/* Received At */}
+                        <td className="px-4 py-3.5 text-[#334155]">
+                          <div className="font-medium text-[#172033]">
+                            {new Date(o.createdAt).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </div>
+                          <div className="text-[11px] text-[#64748B]">
+                            {new Date(o.createdAt).toLocaleTimeString("en-US", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true,
+                            })}
+                          </div>
+                        </td>
+
+                        {/* Actions */}
+                        <td
+                          className="px-4 py-3.5 text-right"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              onClick={() => openDrawer(o.id)}
+                              className="h-7 border-[#D9E2E8] bg-white px-2.5 text-xs font-semibold text-[#172033] shadow-2xs hover:bg-[#F8FAFC]"
+                            >
+                              View
+                            </Button>
+
+                            <button
+                              type="button"
+                              aria-label="Actions"
+                              onClick={() =>
+                                setActiveMenuId(activeMenuId === o.id ? null : o.id)
+                              }
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-[#64748B] hover:bg-[#F1F5F9]"
+                            >
+                              <IconMoreVertical size={15} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card List View (< 768px) */}
+            <div className="divide-y divide-[#E5E7EB] md:hidden">
+              {paginatedRows.map((o) => {
+                const isChecked = selectedIds.includes(o.id);
+                const statusInfo =
+                  o.status === "confirmed"
+                    ? { label: "Verified", bg: "bg-[#E8F7EF]", text: "text-[#087F5B]" }
+                    : o.status === "rejected"
+                    ? { label: "Rejected", bg: "bg-[#FDECEC]", text: "text-[#C9363E]" }
+                    : { label: "Pending", bg: "bg-[#FFF4E5]", text: "text-[#C77700]" };
+
+                const paymentDisplay =
+                  o.paymentMethod === "cod"
+                    ? "COD"
+                    : o.paymentMethod === "full"
+                    ? "Full Payment"
+                    : o.paymentMethod
+                    ? o.paymentMethod.toUpperCase()
+                    : "COD";
+
+                return (
+                  <div
+                    key={o.id}
+                    onClick={() => openDrawer(o.id)}
+                    className="p-4 transition-colors active:bg-[#FAFCFB] space-y-3 cursor-pointer"
+                  >
+                    {/* Header: Order ID + Status + Time */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
                         <input
                           type="checkbox"
                           checked={isChecked}
+                          onClick={(e) => e.stopPropagation()}
                           onChange={() => toggleSelectRow(o.id)}
-                          className="h-3.5 w-3.5 rounded-xs border-[#D9E2E8] text-[#087F5B] accent-[#087F5B]"
+                          className="h-4 w-4 rounded-xs border-[#D9E2E8] text-[#087F5B] accent-[#087F5B]"
                         />
-                      </td>
-
-                      {/* Order ID */}
-                      <td className="px-4 py-3.5">
-                        <div className="font-semibold text-[#101828]">
-                          {fmtOrderId(o.id)}
-                        </div>
-                        {o.phone && (
-                          <div className="text-[11px] text-[#64748B]">{o.phone}</div>
-                        )}
-                      </td>
-
-                      {/* Customer */}
-                      <td className="px-4 py-3.5">
-                        <div className="font-semibold text-[#172033]">
-                          {o.customerName ?? "Unknown customer"}
-                        </div>
-                        {o.phone && (
-                          <div className="text-[11px] text-[#64748B]">{o.phone}</div>
-                        )}
-                      </td>
-
-                      {/* Product & Variant */}
-                      <td className="max-w-[220px] px-4 py-3.5">
-                        <div className="truncate font-medium text-[#172033]" title={o.productName ?? ""}>
-                          {o.productName ?? "—"}
-                        </div>
-                        {o.sizeVariant && (
-                          <div className="text-[11px] text-[#64748B]">
-                            ({o.sizeVariant})
+                        <div>
+                          <div className="font-bold text-sm text-[#101828]">
+                            {fmtOrderId(o.id)}
                           </div>
-                        )}
-                      </td>
+                          <div className="text-[11px] text-[#64748B]">
+                            {new Date(o.createdAt).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                            })}{" "}
+                            ·{" "}
+                            {new Date(o.createdAt).toLocaleTimeString("en-US", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true,
+                            })}
+                          </div>
+                        </div>
+                      </div>
 
-                      {/* Amount */}
-                      <td className="px-4 py-3.5 font-display font-bold text-[#172033]">
-                        {fmtTaka(o.totalAmount)}
-                      </td>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusInfo.bg} ${statusInfo.text}`}
+                      >
+                        {statusInfo.label}
+                      </span>
+                    </div>
 
-                      {/* Payment Method */}
-                      <td className="px-4 py-3.5 font-medium text-[#334155]">
-                        {paymentDisplay}
-                      </td>
-
-                      {/* Status Badge */}
-                      <td className="px-4 py-3.5">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${statusInfo.bg} ${statusInfo.text}`}
-                        >
-                          {statusInfo.label}
+                    {/* Customer & Product details */}
+                    <div className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-3 text-xs space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-[#172033]">
+                          {o.customerName ?? "Unknown Customer"}
                         </span>
-                      </td>
+                        {o.phone && (
+                          <span className="font-mono text-[11px] text-[#64748B]">
+                            {o.phone}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[#475569] font-medium truncate">
+                        {o.productName ?? "Custom Product"}{" "}
+                        {o.sizeVariant && (
+                          <span className="text-[#64748B]">({o.sizeVariant})</span>
+                        )}
+                      </div>
+                    </div>
 
-                      {/* Received At */}
-                      <td className="px-4 py-3.5 text-[#334155]">
-                        <div className="font-medium text-[#172033]">
-                          {new Date(o.createdAt).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })}
+                    {/* Footer: Amount + Payment + View button */}
+                    <div className="flex items-center justify-between pt-1">
+                      <div>
+                        <div className="font-display text-base font-bold text-[#087F5B]">
+                          {fmtTaka(o.totalAmount)}
                         </div>
-                        <div className="text-[11px] text-[#64748B]">
-                          {new Date(o.createdAt).toLocaleTimeString("en-US", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: true,
-                          })}
+                        <div className="text-[11px] font-medium text-[#64748B]">
+                          {paymentDisplay}
                         </div>
-                      </td>
+                      </div>
 
-                      {/* Actions */}
-                      <td
-                        className="px-4 py-3.5 text-right"
+                      <div
+                        className="flex items-center gap-2"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            onClick={() => openDrawer(o.id)}
-                            className="h-7 border-[#D9E2E8] bg-white px-2.5 text-xs font-semibold text-[#172033] shadow-2xs hover:bg-[#F8FAFC]"
-                          >
-                            View
-                          </Button>
-
-                          <button
-                            type="button"
-                            aria-label="Actions"
-                            onClick={() =>
-                              setActiveMenuId(activeMenuId === o.id ? null : o.id)
-                            }
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-[#64748B] hover:bg-[#F1F5F9]"
-                          >
-                            <IconMoreVertical size={15} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        <Button
+                          variant="ghost"
+                          onClick={() => openDrawer(o.id)}
+                          className="h-8 border-[#D9E2E8] bg-white px-3 text-xs font-semibold text-[#172033] shadow-2xs hover:bg-[#F8FAFC]"
+                        >
+                          View Order
+                        </Button>
+                        <button
+                          type="button"
+                          aria-label="Actions"
+                          onClick={() =>
+                            setActiveMenuId(activeMenuId === o.id ? null : o.id)
+                          }
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] hover:bg-[#F1F5F9]"
+                        >
+                          <IconMoreVertical size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
 
         {/* 5. Pagination Bar */}

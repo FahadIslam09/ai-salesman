@@ -178,7 +178,7 @@ export default function KnowledgePage() {
                   value={answers[r.id] ?? ""}
                   onChange={(e) => setAnswers({ ...answers, [r.id]: e.target.value })}
                 />
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <Button onClick={() => answerRequest(r, true)}>Answer & save to knowledge base</Button>
                   <Button variant="ghost" onClick={() => answerRequest(r, false)}>
                     Answer only

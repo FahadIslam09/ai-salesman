@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { API, api, fmtDateTimeDhaka } from "@/lib/api";
 import { usePage } from "@/components/PageProvider";
-import { Badge, Button, EmptyState, Field, Input, Select, Spinner, Stat, Table, statusTone } from "@/lib/ui";
+import { Badge, Button, Card, EmptyState, Field, Input, Select, Spinner, Stat, Table, statusTone } from "@/lib/ui";
 
 interface FollowUp {
   id: string;
@@ -138,37 +138,86 @@ export default function FollowUpsPage() {
       ) : rows.length === 0 ? (
         <EmptyState title="No follow-ups. They appear here when the AI schedules one, or you can schedule one manually." />
       ) : (
-        <Table head={["Customer", "Reason", "Scheduled", "Status", ""]}>
-          {rows.map((fu) => (
-            <tr key={fu.id} className="hover:bg-paper">
-              <td className="px-4 py-3 font-medium text-ink">{fu.customerName ?? "Unknown"}</td>
-              <td className="px-4 py-3 text-sm text-mute">{fu.reason ?? "—"}</td>
-              <td className="px-4 py-3 text-sm text-ink">{fmtDateTimeDhaka(fu.scheduledAt)}</td>
-              <td className="px-4 py-3">
-                <Badge tone={statusTone(fu.status)}>{fu.status.replaceAll("_", " ")}</Badge>
-              </td>
-              <td className="px-4 py-3 text-right">
-                <div className="flex justify-end gap-2">
+        <>
+          {/* Desktop Table View (>= 768px) */}
+          <div className="hidden md:block">
+            <Table head={["Customer", "Reason", "Scheduled", "Status", ""]}>
+              {rows.map((fu) => (
+                <tr key={fu.id} className="hover:bg-paper">
+                  <td className="px-4 py-3 font-medium text-ink">{fu.customerName ?? "Unknown"}</td>
+                  <td className="px-4 py-3 text-sm text-mute">{fu.reason ?? "—"}</td>
+                  <td className="px-4 py-3 text-sm text-ink">{fmtDateTimeDhaka(fu.scheduledAt)}</td>
+                  <td className="px-4 py-3">
+                    <Badge tone={statusTone(fu.status)}>{fu.status.replaceAll("_", " ")}</Badge>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex justify-end gap-2">
+                      {fu.status === "scheduled" && (
+                        <>
+                          <Button variant="ghost" className="py-1.5 text-xs" onClick={() => setStatus(fu, "sent")}>
+                            Mark sent
+                          </Button>
+                          <Button variant="ghost" className="py-1.5 text-xs" onClick={() => setStatus(fu, "cancelled")}>
+                            Cancel
+                          </Button>
+                        </>
+                      )}
+                      {fu.status === "sent" && (
+                        <Button variant="ghost" className="py-1.5 text-xs" onClick={() => setStatus(fu, "completed")}>
+                          Mark completed
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          </div>
+
+          {/* Mobile Card List View (< 768px) */}
+          <Card className="divide-y divide-[#E5E7EB] md:hidden">
+            {rows.map((fu) => (
+              <div key={fu.id} className="p-4 space-y-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="font-semibold text-sm text-[#172033]">
+                      {fu.customerName ?? "Unknown Customer"}
+                    </div>
+                    <div className="text-xs text-[#64748B] mt-0.5">
+                      Scheduled: {fmtDateTimeDhaka(fu.scheduledAt)}
+                    </div>
+                  </div>
+                  <Badge tone={statusTone(fu.status)}>{fu.status.replaceAll("_", " ")}</Badge>
+                </div>
+
+                {fu.reason && (
+                  <div className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-3 text-xs text-[#475569]">
+                    <span className="font-semibold text-[#172033]">Reason: </span>
+                    {fu.reason}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-end gap-2 pt-1">
                   {fu.status === "scheduled" && (
                     <>
-                      <Button variant="ghost" className="py-1.5 text-xs" onClick={() => setStatus(fu, "sent")}>
+                      <Button variant="ghost" className="h-8 px-3 text-xs" onClick={() => setStatus(fu, "sent")}>
                         Mark sent
                       </Button>
-                      <Button variant="ghost" className="py-1.5 text-xs" onClick={() => setStatus(fu, "cancelled")}>
+                      <Button variant="ghost" className="h-8 px-3 text-xs" onClick={() => setStatus(fu, "cancelled")}>
                         Cancel
                       </Button>
                     </>
                   )}
                   {fu.status === "sent" && (
-                    <Button variant="ghost" className="py-1.5 text-xs" onClick={() => setStatus(fu, "completed")}>
+                    <Button variant="ghost" className="h-8 px-3 text-xs" onClick={() => setStatus(fu, "completed")}>
                       Mark completed
                     </Button>
                   )}
                 </div>
-              </td>
-            </tr>
-          ))}
-        </Table>
+              </div>
+            ))}
+          </Card>
+        </>
       )}
 
       {modalOpen && (

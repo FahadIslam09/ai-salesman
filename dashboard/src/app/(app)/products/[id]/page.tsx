@@ -990,11 +990,11 @@ export default function EditProductPage() {
                 >
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     {/* Left: Drag + Color Name Input */}
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2.5 w-full sm:w-auto">
                       <div className="cursor-grab text-[#94A3B8]">
                         <IconGripVertical size={16} />
                       </div>
-                      <div className="w-36 sm:w-40">
+                      <div className="w-full sm:w-40">
                         <label className="mb-1 block text-[11px] font-semibold text-[#64748B]">
                           Color Name <span className="text-danger">*</span>
                         </label>
@@ -1010,7 +1010,7 @@ export default function EditProductPage() {
                       </div>
                     </div>
 
-                    <div className="grid flex-1 grid-cols-3 gap-2.5">
+                    <div className="grid flex-1 grid-cols-1 sm:grid-cols-3 gap-2.5 w-full">
                       <div>
                         <label className="mb-1 block text-[11px] font-semibold text-[#64748B]">
                           Price (BDT)

@@ -921,152 +921,234 @@ export default function SalesPage() {
             </Button>
           </div>
         ) : (
-          /* Data Table */
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC] text-[11px] font-semibold text-[#64748B]">
-                <tr>
-                  <th className="px-5 py-3">Date & Time</th>
-                  <th className="px-4 py-3">Order ID</th>
-                  <th className="px-4 py-3">Customer</th>
-                  <th className="px-4 py-3">Source</th>
-                  <th className="px-4 py-3">Items</th>
-                  <th className="px-4 py-3">Amount</th>
-                  <th className="px-4 py-3">AI Assisted</th>
-                  <th className="px-4 py-3">Payment Method</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#E5E7EB]">
-                {paginatedRows.map((s) => {
-                  const initials = s.customerName
-                    ? s.customerName
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")
-                        .slice(0, 2)
-                        .toUpperCase()
-                    : "CU";
+          <>
+            {/* Desktop Table View (>= 768px) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC] text-[11px] font-semibold text-[#64748B]">
+                  <tr>
+                    <th className="px-5 py-3">Date & Time</th>
+                    <th className="px-4 py-3">Order ID</th>
+                    <th className="px-4 py-3">Customer</th>
+                    <th className="px-4 py-3">Source</th>
+                    <th className="px-4 py-3">Items</th>
+                    <th className="px-4 py-3">Amount</th>
+                    <th className="px-4 py-3">AI Assisted</th>
+                    <th className="px-4 py-3">Payment Method</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E5E7EB]">
+                  {paginatedRows.map((s) => {
+                    const initials = s.customerName
+                      ? s.customerName
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .slice(0, 2)
+                          .toUpperCase()
+                      : "CU";
 
-                  return (
-                    <tr key={s.id} className="hover:bg-[#FAFCFB]">
-                      {/* Date & Time */}
-                      <td className="px-5 py-3.5 text-[#334155]">
-                        <div className="font-medium text-[#172033]">
-                          {new Date(s.createdAt).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })}
-                        </div>
-                        <div className="text-[11px] text-[#64748B]">
-                          {timeAgo(s.createdAt)}
-                        </div>
-                      </td>
-
-                      {/* Order ID */}
-                      <td className="px-4 py-3.5 font-mono text-[11px] text-[#64748B]">
-                        #ORD-{s.id.slice(0, 6).toUpperCase()}
-                      </td>
-
-                      {/* Customer */}
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-2">
-                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#E8F5EF] text-[11px] font-bold text-[#087F5B]">
-                            {initials}
+                    return (
+                      <tr key={s.id} className="hover:bg-[#FAFCFB]">
+                        {/* Date & Time */}
+                        <td className="px-5 py-3.5 text-[#334155]">
+                          <div className="font-medium text-[#172033]">
+                            {new Date(s.createdAt).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
                           </div>
-                          <span className="font-semibold text-[#172033]">
-                            {s.customerName ?? "Guest"}
-                          </span>
-                        </div>
-                      </td>
+                          <div className="text-[11px] text-[#64748B]">
+                            {timeAgo(s.createdAt)}
+                          </div>
+                        </td>
 
-                      {/* Source */}
-                      <td className="px-4 py-3.5">
-                        <span className="inline-flex items-center rounded-md bg-[#F1F5F9] px-2 py-0.5 text-[11px] font-medium text-[#334155] capitalize">
+                        {/* Order ID */}
+                        <td className="px-4 py-3.5 font-mono text-[11px] text-[#64748B]">
+                          #ORD-{s.id.slice(0, 6).toUpperCase()}
+                        </td>
+
+                        {/* Customer */}
+                        <td className="px-4 py-3.5">
+                          <div className="flex items-center gap-2">
+                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#E8F5EF] text-[11px] font-bold text-[#087F5B]">
+                              {initials}
+                            </div>
+                            <span className="font-semibold text-[#172033]">
+                              {s.customerName ?? "Guest"}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Source */}
+                        <td className="px-4 py-3.5">
+                          <span className="inline-flex items-center rounded-md bg-[#F1F5F9] px-2 py-0.5 text-[11px] font-medium text-[#334155] capitalize">
+                            {s.source === "inbox" ? "AI Chat" : s.source.replace("_", " ")}
+                          </span>
+                        </td>
+
+                        {/* Items */}
+                        <td className="px-4 py-3.5 text-[#172033]">
+                          {s.productName ? (
+                            <span>
+                              {s.productName}{" "}
+                              <span className="text-[#64748B]">(x{s.quantity})</span>
+                            </span>
+                          ) : (
+                            <span className="text-[#64748B]">Custom Item (x{s.quantity})</span>
+                          )}
+                        </td>
+
+                        {/* Amount */}
+                        <td className="px-4 py-3.5 font-display font-bold text-[#172033]">
+                          {fmtTaka(s.amount)}
+                        </td>
+
+                        {/* AI Assisted */}
+                        <td className="px-4 py-3.5">
+                          {s.aiAssisted ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#087F5B]">
+                              <IconCheck size={13} /> Yes
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-[#94A3B8]">— No</span>
+                          )}
+                        </td>
+
+                        {/* Payment Method */}
+                        <td className="px-4 py-3.5 text-[#64748B]">Cash on Delivery</td>
+
+                        {/* Status */}
+                        <td className="px-4 py-3.5">
+                          <span className="inline-flex items-center rounded-full bg-[#E8F5EF] px-2.5 py-0.5 text-[11px] font-semibold text-[#087F5B]">
+                            Completed
+                          </span>
+                        </td>
+
+                        {/* Actions */}
+                        <td className="relative px-4 py-3.5 text-right">
+                          <button
+                            type="button"
+                            aria-label="Actions"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMenuId(activeMenuId === s.id ? null : s.id);
+                            }}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#172033]"
+                          >
+                            <IconMoreVertical size={15} />
+                          </button>
+
+                          {/* Action Menu */}
+                          {activeMenuId === s.id && (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute right-4 z-30 mt-1 w-32 rounded-xl border border-[#E5E7EB] bg-white p-1 text-left shadow-lg"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveMenuId(null);
+                                  setDeleteConfirmId(s.id);
+                                }}
+                                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-danger hover:bg-danger-soft"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card List View (< 768px) */}
+            <div className="divide-y divide-[#E5E7EB] md:hidden">
+              {paginatedRows.map((s) => {
+                const initials = s.customerName
+                  ? s.customerName
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .slice(0, 2)
+                      .toUpperCase()
+                  : "CU";
+
+                return (
+                  <div key={s.id} className="p-4 space-y-3">
+                    {/* Header: Customer + Time + Status */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#E8F5EF] text-xs font-bold text-[#087F5B]">
+                          {initials}
+                        </div>
+                        <div>
+                          <div className="font-semibold text-sm text-[#172033]">
+                            {s.customerName ?? "Guest"}
+                          </div>
+                          <div className="text-[11px] text-[#64748B]">
+                            #ORD-{s.id.slice(0, 6).toUpperCase()} · {timeAgo(s.createdAt)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <span className="inline-flex items-center rounded-full bg-[#E8F5EF] px-2.5 py-0.5 text-xs font-semibold text-[#087F5B]">
+                        Completed
+                      </span>
+                    </div>
+
+                    {/* Middle: Items & Source Tag */}
+                    <div className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-3 text-xs space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-[#172033]">
+                          {s.productName ? (
+                            <span>
+                              {s.productName}{" "}
+                              <span className="text-[#64748B]">(x{s.quantity})</span>
+                            </span>
+                          ) : (
+                            <span className="text-[#64748B]">Custom Item (x{s.quantity})</span>
+                          )}
+                        </span>
+                        <span className="inline-flex items-center rounded-md bg-[#F1F5F9] px-2 py-0.5 text-[10px] font-semibold text-[#334155] capitalize">
                           {s.source === "inbox" ? "AI Chat" : s.source.replace("_", " ")}
                         </span>
-                      </td>
-
-                      {/* Items */}
-                      <td className="px-4 py-3.5 text-[#172033]">
-                        {s.productName ? (
-                          <span>
-                            {s.productName}{" "}
-                            <span className="text-[#64748B]">(x{s.quantity})</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] text-[#64748B]">
+                        <span>Payment: Cash on Delivery</span>
+                        {s.aiAssisted && (
+                          <span className="inline-flex items-center gap-1 font-semibold text-[#087F5B]">
+                            <IconCheck size={12} /> AI Assisted
                           </span>
-                        ) : (
-                          <span className="text-[#64748B]">Custom Item (x{s.quantity})</span>
                         )}
-                      </td>
+                      </div>
+                    </div>
 
-                      {/* Amount */}
-                      <td className="px-4 py-3.5 font-display font-bold text-[#172033]">
+                    {/* Footer: Amount + Delete action */}
+                    <div className="flex items-center justify-between pt-1">
+                      <div className="font-display text-base font-bold text-[#087F5B]">
                         {fmtTaka(s.amount)}
-                      </td>
+                      </div>
 
-                      {/* AI Assisted */}
-                      <td className="px-4 py-3.5">
-                        {s.aiAssisted ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#087F5B]">
-                            <IconCheck size={13} /> Yes
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-[#94A3B8]">— No</span>
-                        )}
-                      </td>
-
-                      {/* Payment Method */}
-                      <td className="px-4 py-3.5 text-[#64748B]">Cash on Delivery</td>
-
-                      {/* Status */}
-                      <td className="px-4 py-3.5">
-                        <span className="inline-flex items-center rounded-full bg-[#E8F5EF] px-2.5 py-0.5 text-[11px] font-semibold text-[#087F5B]">
-                          Completed
-                        </span>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="relative px-4 py-3.5 text-right">
-                        <button
-                          type="button"
-                          aria-label="Actions"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveMenuId(activeMenuId === s.id ? null : s.id);
-                          }}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#172033]"
-                        >
-                          <IconMoreVertical size={15} />
-                        </button>
-
-                        {/* Action Menu */}
-                        {activeMenuId === s.id && (
-                          <div
-                            onClick={(e) => e.stopPropagation()}
-                            className="absolute right-4 z-30 mt-1 w-32 rounded-xl border border-[#E5E7EB] bg-white p-1 text-left shadow-lg"
-                          >
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveMenuId(null);
-                                setDeleteConfirmId(s.id);
-                              }}
-                              className="flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-[#C24141] hover:bg-[#FEECEC]"
-                            >
-                              <IconTrash size={13} />
-                              <span>Delete</span>
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteConfirmId(s.id)}
+                        className="rounded-lg border border-[#E5E7EB] bg-white px-2.5 py-1 text-xs font-medium text-danger hover:bg-danger-soft"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
 
         {/* Bottom Pagination Bar */}

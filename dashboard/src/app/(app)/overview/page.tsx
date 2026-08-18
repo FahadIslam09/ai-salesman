@@ -398,29 +398,34 @@ export default function OverviewPage() {
           </Link>
         </div>
 
-        {/* Funnel Stages Container (horizontally scrollable on small screens) */}
-        <div className="no-scrollbar flex items-center gap-2 overflow-x-auto pb-1 sm:gap-3">
+        {/* Funnel Stages Container (Grid on mobile, flex on tablet/desktop) */}
+        <div className="grid grid-cols-2 gap-2.5 sm:flex sm:items-center sm:gap-3 sm:overflow-x-auto sm:no-scrollbar pb-1">
           {funnelStages.map((stage, index) => {
             const Icon = stage.icon;
             const isLast = index === funnelStages.length - 1;
             return (
-              <div key={stage.label} className="flex min-w-[130px] flex-1 items-center sm:min-w-[150px]">
+              <div
+                key={stage.label}
+                className={`flex flex-1 items-center min-w-0 sm:min-w-[130px] lg:min-w-[150px] ${
+                  isLast && index % 2 === 0 ? "col-span-2 sm:col-span-1" : ""
+                }`}
+              >
                 <Link
                   href={stage.href}
-                  className="group flex w-full flex-col items-center rounded-xl border border-line bg-paper p-3.5 text-center transition-all hover:border-[#D0D7D4] hover:bg-surface hover:shadow-xs"
+                  className="group flex w-full flex-col items-center rounded-xl border border-line bg-paper p-3 sm:p-3.5 text-center transition-all hover:border-[#D0D7D4] hover:bg-surface hover:shadow-xs"
                 >
                   <div
-                    className={`flex h-10 w-10 items-center justify-center rounded-full transition-transform group-hover:scale-110 ${stage.bgClass}`}
+                    className={`flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full transition-transform group-hover:scale-110 ${stage.bgClass}`}
                   >
-                    <Icon size={19} />
+                    <Icon size={18} />
                   </div>
-                  <p className="mt-2 text-xl font-bold tracking-tight text-ink sm:text-2xl">
+                  <p className="mt-1.5 sm:mt-2 text-lg sm:text-xl font-bold tracking-tight text-ink">
                     {stage.count.toLocaleString("en-IN")}
                   </p>
-                  <p className="text-xs font-semibold text-mute">{stage.label}</p>
+                  <p className="text-[11px] sm:text-xs font-semibold text-mute">{stage.label}</p>
                 </Link>
                 {!isLast && (
-                  <div className="hidden shrink-0 px-2 text-mute md:block">
+                  <div className="hidden shrink-0 px-2 text-mute lg:block">
                     <IconArrowRight size={16} />
                   </div>
                 )}

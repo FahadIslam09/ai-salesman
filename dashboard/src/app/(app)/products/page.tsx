@@ -802,8 +802,8 @@ export default function ProductsPage() {
                           />
                         </td>
 
-                        {/* Product Thumbnail & Name */}
-                        <td className="max-w-[280px] px-4 py-3.5">
+                        {/* Product Thumbnail & Name + Action Links */}
+                        <td className="min-w-[260px] max-w-[340px] px-4 py-3.5">
                           <div className="flex items-center gap-3">
                             <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-[#E5E7EB] bg-[#F8FAFC]">
                               {primaryImage ? (
@@ -818,7 +818,7 @@ export default function ProductsPage() {
                                 </div>
                               )}
                             </div>
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <Link
                                 href={`/products/${p.id}`}
                                 className="block truncate text-[14px] font-semibold text-[#172033] hover:text-[#087F5B]"
@@ -826,6 +826,51 @@ export default function ProductsPage() {
                               >
                                 {p.name}
                               </Link>
+                              {/* Quick Action Options directly below title */}
+                              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] font-medium leading-none">
+                                <Link
+                                  href={`/products/${p.id}`}
+                                  className="text-[#087F5B] hover:text-[#066B4D] hover:underline"
+                                >
+                                  Edit Product
+                                </Link>
+                                <span className="text-[#D0D5DD]">•</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDuplicate(p)}
+                                  className="text-[#475569] hover:text-[#101828] hover:underline cursor-pointer"
+                                >
+                                  Duplicate
+                                </button>
+                                <span className="text-[#D0D5DD]">•</span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleQuickStock(
+                                      p,
+                                      p.stockStatus === "available"
+                                        ? "out_of_stock"
+                                        : "available"
+                                    )
+                                  }
+                                  className="text-[#475569] hover:text-[#101828] hover:underline cursor-pointer"
+                                >
+                                  {p.stockStatus === "available"
+                                    ? "Mark Out of Stock"
+                                    : "Mark In Stock"}
+                                </button>
+                                <span className="text-[#D0D5DD]">•</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveMenuId(null);
+                                    setDeleteModalProduct(p);
+                                  }}
+                                  className="text-[#DC2626] hover:text-[#B91C1C] hover:underline cursor-pointer"
+                                >
+                                  Delete product
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -985,6 +1030,51 @@ export default function ProductsPage() {
                               {p.name}
                             </Link>
                             <p className="text-xs text-[#64748B]">{sku}</p>
+                            {/* Action options directly below title */}
+                            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] font-medium leading-none">
+                              <Link
+                                href={`/products/${p.id}`}
+                                className="text-[#087F5B] hover:text-[#066B4D] hover:underline"
+                              >
+                                Edit Product
+                              </Link>
+                              <span className="text-[#D0D5DD]">•</span>
+                              <button
+                                type="button"
+                                onClick={() => handleDuplicate(p)}
+                                className="text-[#475569] hover:text-[#101828] hover:underline cursor-pointer"
+                              >
+                                Duplicate
+                              </button>
+                              <span className="text-[#D0D5DD]">•</span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleQuickStock(
+                                    p,
+                                    p.stockStatus === "available"
+                                      ? "out_of_stock"
+                                      : "available"
+                                  )
+                                }
+                                className="text-[#475569] hover:text-[#101828] hover:underline cursor-pointer"
+                              >
+                                {p.stockStatus === "available"
+                                  ? "Mark Out of Stock"
+                                  : "Mark In Stock"}
+                              </button>
+                              <span className="text-[#D0D5DD]">•</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveMenuId(null);
+                                  setDeleteModalProduct(p);
+                                }}
+                                className="text-[#DC2626] hover:text-[#B91C1C] hover:underline cursor-pointer"
+                              >
+                                Delete product
+                              </button>
+                            </div>
                           </div>
 
                           <div className="relative flex items-center">

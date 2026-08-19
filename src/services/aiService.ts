@@ -50,7 +50,7 @@ export async function generateReply(systemPrompt: string, history: HistoryMsg[])
   const res = await client.chat.completions.create({
     model: CHAT_MODEL,
     messages: [{ role: "system", content: systemPrompt }, ...toOpenAiMessages(history)],
-    max_tokens: 1000,
+    max_tokens: 500,
   });
   return {
     text: sanitizeText(res.choices[0]?.message?.content ?? ""),
@@ -80,7 +80,7 @@ export async function generateReplyWithImages(
       ...toOpenAiMessages(history),
       { role: "user", content },
     ],
-    max_tokens: 1000,
+    max_tokens: 500,
   });
   return {
     text: sanitizeText(res.choices[0]?.message?.content ?? ""),

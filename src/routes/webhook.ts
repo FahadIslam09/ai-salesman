@@ -864,8 +864,32 @@ async function handleFeedEvents(entry: any) {
 
     const token = decryptToken(page.encryptedAccessToken, page.tokenIv);
 
-    // Pull the post's image + caption so the AI can identify the product even
-    // when the customer's comment is just "Price?".
+    // 1. Check for simple praise, compliments, emojis, or greetings (0 AI tokens, instant reply)
+    const trimmedMessage = message.trim();
+    const simplePraisePattern =
+      /^(wow|nice|awesome|good|great|beautiful|sundor|shundor|sundar|mashallah|masha allah|super|love it|khub sundor|onek sundor|osadharon|valo|bhala|সুন্দর|মাশাল্লাহ|অনেক সুন্দর|খুব সুন্দর|অসাধারণ|ভালো|ভালো লাগলো|হুম|hm|hmm|ok|okay|hi|hello|hey|❤️|🔥|😍|🥰|👍|👏|🌹|🌸|💐|\s)+$/i;
+
+    if (simplePraisePattern.test(trimmedMessage)) {
+      const praiseReplies = [
+        "অনেক ধন্যবাদ! 😊",
+        "ধন্যবাদ আপনার সুন্দর মন্তব্যের জন্য! ❤️",
+        "ধন্যবাদ! ভালো লাগলে ইনবক্সে নক দিতে পারেন 😊",
+        "অনেক ধন্যবাদ! আমাদের কালেকশন ভালো লাগলে জানাবেন 😊",
+      ];
+      // Deterministic pseudo-random pick based on commentId
+      const charCodeSum = Array.from(commentId).reduce((acc, c) => acc + c.charCodeAt(0), 0);
+      const commentReply = praiseReplies[charCodeSum % praiseReplies.length];
+
+      try {
+        await replyToComment(token, commentId, commentReply);
+        emitPageEvent(page.id, "comment_reply", { commentId });
+      } catch (err) {
+        console.error("[feed] simple praise reply failed:", err);
+      }
+      continue;
+    }
+
+    // Pull the post's image + caption so the AI can identify the product
     let caption = "";
     let postImage: { base64: string; mime: string } | null = null;
     try {
@@ -878,42 +902,58 @@ async function handleFeedEvents(entry: any) {
     } catch (err) {
       console.error("failed to fetch post context:", err);
     }
+
     const systemPrompt = await buildPagePrompt(page.id, botConfig, {
       storeName: page.name,
       messageText: message,
       hasImages: !!postImage,
     });
 
-    // Step 1: identify the product and write the private message (or NONE).
-    const privatePrompt = `${systemPrompt}
+    const isPriceOrOrderAsk =
+      /\b(dam|daam|price|rate|cost|koto|koto taka|taka|tk|order|kinbo|nibo|kine|দাম|কত|টাকা|রেট|প্রাইস|অর্ডার|কিনব|নিব|কত টাকা|বাজেট)\b/i.test(
+        trimmedMessage
+      );
+
+    let privateMessage = "";
+    let commentReply = "";
+    let tokensIn = 0;
+    let tokensOut = 0;
+    let usedModel = "openai/gpt-5.6-luna";
+
+    if (isPriceOrOrderAsk) {
+      // Step A: Price/Buying inquiry -> 1 single AI call for private inbox price details
+      const privatePrompt = `${systemPrompt}
 
 ## PRIVATE REPLY TASK
-A customer commented on one of your Facebook posts: "${message}"
-${caption ? `Post caption: "${caption}"` : "The post has no caption."} ${postImage ? "Analyze the post image to identify which catalog product it shows." : ""}
+A customer commented asking about PRICE or ORDERING on Facebook: "${message}"
+${caption ? `Post caption: "${caption}"` : ""} ${postImage ? "Analyze the post image to identify which catalog product it shows." : ""}
 
-- If the comment asks specifically about PRICE or BUYING (দাম কত, price, কত টাকা, অর্ডার, কিনবো, buy): identify the exact product from the post, then write the private message following the PRICE RESPONSE FORMAT rules above. Output ONLY the message text — no intro, no quotes.
-- For any OTHER comment — product-detail questions (GSM, fabric, material, size, color, quality), greetings, spam, emojis, off-topic — output ONLY the word NONE. Those are answered publicly instead.`;
+Identify the exact product from the post/caption, then write the private message following the PRICE RESPONSE FORMAT rules. Output ONLY the message text.`;
 
-    const privateReply = postImage
-      ? await generateReplyWithImages(privatePrompt, [postImage], message, [])
-      : await generateReply(privatePrompt, [{ role: "user", content: message }]);
+      const privateReply = postImage
+        ? await generateReplyWithImages(privatePrompt, [postImage], message, [])
+        : await generateReply(privatePrompt, [{ role: "user", content: message }]);
 
-    const privateMessage = /^NONE\.?$/i.test(privateReply.text.trim()) ? "" : privateReply.text.trim();
-    let tokensIn = privateReply.tokensIn;
-    let tokensOut = privateReply.tokensOut;
-
-    // Step 2: public comment reply. Deterministic for price questions, AI-written otherwise.
-    let commentReply = "";
-    if (privateMessage) {
+      privateMessage = privateReply.text.trim();
       commentReply = "Inbox চেক করুন 📩";
+      tokensIn = privateReply.tokensIn;
+      tokensOut = privateReply.tokensOut;
+      usedModel = privateReply.model;
     } else {
-      const publicPrompt = `${systemPrompt}\n\nA customer commented on your Facebook post: "${message}".${caption ? ` Post caption: "${caption}".` : ""} Identify the product in the post from its image and caption, then answer the customer's actual question using that product's details in the catalog (GSM, fabric, material, size, color, quality, description). Answer ONLY what they asked — do not give the price or a sales pitch unless they asked for it. Keep the reply short and friendly (1-2 lines). If the comment is spam or just an emoji, a brief "ধন্যবাদ! 😊" acknowledgment is fine. Output ONLY the reply text, nothing else.`;
+      // Step B: Product question (fabric, sizes, colors, details) -> 1 single AI call for public comment
+      const publicPrompt = `${systemPrompt}
+
+A customer commented on your Facebook post: "${message}". ${caption ? `Post caption: "${caption}".` : ""}
+Identify the product from the post and answer their question briefly and warmly using that product's details in the catalog (GSM, fabric, material, size, color, quality). Keep the reply short (1-2 lines). Output ONLY the reply text, nothing else.`;
+
       const publicReply = postImage
         ? await generateReplyWithImages(publicPrompt, [postImage], message, [])
         : await generateReply(publicPrompt, [{ role: "user", content: message }]);
+
       commentReply = publicReply.text.trim();
-      tokensIn += publicReply.tokensIn;
-      tokensOut += publicReply.tokensOut;
+      tokensIn = publicReply.tokensIn;
+      tokensOut = publicReply.tokensOut;
+      usedModel = publicReply.model;
     }
 
     console.log("[feed] AI reply:", JSON.stringify({ privateMessage, commentReply }));
@@ -938,7 +978,7 @@ ${caption ? `Post caption: "${caption}"` : "The post has no caption."} ${postIma
           userId: page.userId,
           pageId: page.id,
           kind: "comment_reply",
-          model: privateReply.model,
+          model: usedModel,
           tokensIn,
           tokensOut,
         });

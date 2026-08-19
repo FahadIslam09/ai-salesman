@@ -17,11 +17,11 @@ export const DEFAULT_REFUND_POLICY =
 export const DEFAULT_WARRANTY =
   "No warranty unless explicitly stated on the specific product.";
 export const DEFAULT_COD_MESSAGE = `আপনার Payment Verify হয়ে গেছে! ✅ আপনার Order Confirm করা হলো।
-খুব শীঘ্রই আমরা প্রোডাক্টটি প্যাক করে Courier-এর মাধ্যমে পাঠিয়ে দেব। ডেলিভারি পেতে সাধারণত [{{X-Y}} কার্যদিবস] সময় লাগে।
+খুব শীঘ্রই আমরা প্রোডাক্টটি প্যাক করে Courier-এর মাধ্যমে পাঠিয়ে দেব। ডেলিভারি পেতে সাধারণত [৩-৪ কার্যদিবস] সময় লাগে।
 পণ্য হাতে পাওয়ার পর বাকি টাকা ({{remaining_amount}} টাকা) Cash দিয়ে পরিশোধ করবেন।
 কোনো প্রশ্ন থাকলে জানাবেন! 😊`;
 export const DEFAULT_FULL_MESSAGE = `আপনার Payment Verify হয়ে গেছে! ✅ আপনার Order Confirm করা হলো।
-খুব শীঘ্রই আমরা প্রোডাক্টটি প্যাক করে পাঠিয়ে দেওয়া হবে। ডেলিভারি পেতে সাধারণত [{{X-Y}} কার্যদিবস] সময় লাগবে।
+খুব শীঘ্রই আমরা প্রোডাক্টটি প্যাক করে পাঠিয়ে দেওয়া হবে। ডেলিভারি পেতে সাধারণত [৩-৪ কার্যদিবস] সময় লাগবে।
 ধন্যবাদ আমাদের সাথে অর্ডার করার জন্য! 😊`;
 
 export type PromptModule =
@@ -361,16 +361,16 @@ Step 2 — Needs: Ask for their preferred size, color, or style preferences.
 Step 3 — Value: Pitch why this product is worth every taka (material, fit, durability).
 Step 4 — Price & Variant: State the price and confirm variant availability.
 Step 5 — Objection Handling: If they hesitate on price/quality, address it smoothly (pitch durability, offer allowable discount).
-Step 6 — Closing & Summary: Present complete order details (Product, Size/Color, Price + Delivery charge = Total) and ask for Delivery Address & Phone Number.
-Step 7 — Order Confirmation: Once complete details are received, confirm order and mark [ORDER_CONFIRMED].`,
+Step 6 — Collect Info: Ask for Name, Mobile Phone Number, and Full Delivery Address. Keep it simple and clean. Do NOT mention delivery charges, delivery time, or payment methods at this step.
+Step 7 — Order Summary & Confirmation: Once all details are received, present the final order summary (Product, Size/Color, Price + Delivery charge = Total) and confirm. Only NOW mention delivery charge and payment method. Append on its own line:
+[ORDER_CONFIRMED]
 
-      `## BUSINESS CONTEXT
+⚠️ CRITICAL: When a customer asks "kivabe order korbo?" or "order nibo", you are at Step 6. Just ask for their Name, Phone, and Address. Do NOT dump delivery charges, delivery days, or payment options until the final Step 7 summary.`,
+
+      `## BUSINESS CONTEXT (REFERENCE — use only when relevant step requires it)
 - Order requirements: ${orderInfo}
 - Payment methods: ${paymentInfo}${bc.paymentNumber ? `\n- Payment Number: ${bc.paymentNumber}` : ""}
-- Delivery info: ${deliveryInfo}
-- ORDER CONFIRMATION MARKER:
-  When an order is FULLY confirmed (customer has provided name, phone number, address, product, and payment details), output the confirmation message and append on its own line:
-  [ORDER_CONFIRMED]`
+- Delivery info: ${deliveryInfo}`
     );
   }
 

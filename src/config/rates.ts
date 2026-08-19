@@ -30,18 +30,18 @@ export function providerFor(model: string): string {
 // cost = (in*inCents + out*outCents) / 100 micro-USD = (...) * 10 nano-USD
 export function costNanoUsd(model: string, tokensIn: number, tokensOut: number): number {
   const r = rateFor(model);
-  return (tokensIn * r.input + tokensOut * r.output) * 10;
+  return Math.round((tokensIn * r.input + tokensOut * r.output) * 10);
 }
 
 // Customer billable cost after the markup multiplier, in nano-USD.
 export function billableNanoUsd(model: string, tokensIn: number, tokensOut: number): number {
-  return costNanoUsd(model, tokensIn, tokensOut) * MARKUP_MULTIPLIER;
+  return Math.round(costNanoUsd(model, tokensIn, tokensOut) * MARKUP_MULTIPLIER);
 }
 
 // Credits consumed (in micro-credits) for a given model + token usage.
 // microCredits = billableNanoUsd * 10  (1 credit = $1e-4 = 100,000 nano-USD)
 export function usageMicroCredits(model: string, tokensIn: number, tokensOut: number): number {
-  return billableNanoUsd(model, tokensIn, tokensOut) * 10;
+  return Math.round(billableNanoUsd(model, tokensIn, tokensOut) * 10);
 }
 
 export function microToCredits(micro: number): number {

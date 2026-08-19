@@ -7,10 +7,12 @@ export const MARKUP_MULTIPLIER = Number(process.env.MARKUP_MULTIPLIER ?? "4");
 // 1 credit = $0.0001 customer usage value.
 export const CREDIT_VALUE_USD = 0.0001;
 
-// Provider rates in "cents per 1M tokens" (integer, 2-decimal precision).
+// Provider rates in "cents per 1M tokens" (integer or decimal precision).
 export const MODEL_RATES: Record<string, { input: number; output: number }> = {
   "openai/gpt-5.6-luna": { input: 10, output: 60 },
   "google/gemini-2.5-flash-lite": { input: 10, output: 40 },
+  "deepseek/deepseek-chat": { input: 7.65, output: 15.3 },
+  "deepseek/deepseek-v4-flash-0731": { input: 7.65, output: 15.3 },
 };
 
 // Fixed-point: 1 credit = 1,000,000 micro-credits.

@@ -98,7 +98,7 @@ export class ChatService {
    * Sliding window: fetch last N messages, merge consecutive same-role messages,
    * ensure history starts with a 'user' message.
    */
-  static async getRecentChatHistory(conversationId: string, limit: number = 6) {
+  static async getRecentChatHistory(conversationId: string, limit: number = 4) {
     const history = await db
       .select()
       .from(messages)

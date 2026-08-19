@@ -15,6 +15,7 @@ import { chargeUsage, getBalance } from "../services/creditService";
 import { MessageQueue, type QueueItem } from "../services/queueService";
 import { emitPageEvent } from "../utils/events";
 import { extractNameFromGreeting } from "../utils/nameExtractor";
+import { classifyCustomerIntent, CLASSIFIER_MODEL } from "../services/aiClassifierService";
 
 export const webhookRouter = Router();
 const queue = new MessageQueue(3500);
@@ -174,6 +175,31 @@ function extractFollowUpData(replyText: string, latestCustomerText?: string): Ex
     const num = parseInt(raw, 10);
     if (Number.isFinite(num)) {
       minutes = num;
+    }
+  }
+
+  // Case 4: ISO timestamp or Date string
+  if (minutes == null) {
+    const parsedDate = new Date(raw);
+    if (!isNaN(parsedDate.getTime())) {
+      const diffMinutes = Math.round((parsedDate.getTime() - Date.now()) / (60 * 1000));
+      if (diffMinutes > 0) {
+        minutes = diffMinutes;
+      }
+    }
+  }
+
+  // Case 5: Natural fallback from customer text (e.g. "1 hour", "1 ghonta", "30 min", "2 hours")
+  if ((minutes == null || minutes <= 0) && latestCustomerText) {
+    const lower = latestCustomerText.toLowerCase();
+    const hrMatch = /(\d+)\s*(?:ghonta|hour|hours|hr|hrs|ঘণ্টা|ঘন্টা)/i.exec(lower);
+    if (hrMatch) {
+      minutes = parseInt(hrMatch[1], 10) * 60;
+    } else {
+      const minMatch = /(\d+)\s*(?:min|mins|minute|minutes|মিনিট)/i.exec(lower);
+      if (minMatch) {
+        minutes = parseInt(minMatch[1], 10);
+      }
     }
   }
 
@@ -511,6 +537,27 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
   const text = items.map((i) => i.text).filter(Boolean).join("\n");
   const imageUrls = items.flatMap((i) => i.attachments ?? []);
 
+  // Tier 1: Fast DeepSeek Classifier identifies intent and isolates target product(s)
+  const activeProducts = await getActiveProducts(page.id);
+  const classification = await classifyCustomerIntent(
+    text,
+    imageUrls.length > 0,
+    history,
+    activeProducts.map((p) => ({ name: p.name, price: p.price }))
+  );
+
+  if (classification.tokensIn > 0 || classification.tokensOut > 0) {
+    await chargeUsage({
+      userId: page.userId,
+      pageId: page.id,
+      conversationId: conversation.id,
+      kind: "intent_classification",
+      model: CLASSIFIER_MODEL,
+      tokensIn: classification.tokensIn,
+      tokensOut: classification.tokensOut,
+    });
+  }
+
   const basePrompt = await buildPagePrompt(page.id, botConfig, {
     storeName: page.name,
     customerName: customer.name ?? undefined,
@@ -518,8 +565,24 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
     messageText: text,
     hasImages: imageUrls.length > 0,
     history,
+    activeModules: classification.modules,
+    targetProducts: classification.targetProducts,
+    intent: classification.intent,
   });
   const systemPrompt = summary ? `${basePrompt}\n\nConversation summary so far:\n${summary}` : basePrompt;
+
+  console.log(`\n================== [TWO-TIER AI PIPELINE] ==================`);
+  console.log(`📩 Customer Message: "${text}"`);
+  console.log(`🤖 Tier 1 (DeepSeek Classifier Output):`);
+  console.log(`   • Intent: ${classification.intent}`);
+  console.log(`   • Target Product(s): ${classification.targetProducts.join(", ") || "None (Store-wide)"}`);
+  console.log(`   • Active Modules: ${Array.from(classification.modules).join(", ")}`);
+  console.log(`\n📄 [EXACT PROMPT SENT TO LUNA 5.6]:`);
+  console.log(`------------------------------------------------------------`);
+  console.log(systemPrompt);
+  console.log(`------------------------------------------------------------`);
+  console.log(`📊 Stats: ${systemPrompt.length} chars (~${Math.round(systemPrompt.length / 3.5)} tokens) | History: ${history.length} messages`);
+  console.log(`=============================================================\n`);
 
   let reply;
   if (imageUrls.length > 0) {

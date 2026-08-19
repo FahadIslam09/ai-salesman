@@ -55,10 +55,82 @@ interface UsageStats {
 
 const PAGE_SIZE = 10;
 
+export const MODEL_PRICING: Record<
+  string,
+  { label: string; inRate: number; outRate: number; provider: string }
+> = {
+  "deepseek/deepseek-chat": {
+    label: "DeepSeek V4 Flash",
+    inRate: 0.0765, // $0.0765 / 1M tokens
+    outRate: 0.153, // $0.153 / 1M tokens
+    provider: "DeepSeek",
+  },
+  "deepseek/deepseek-v4-flash-0731": {
+    label: "DeepSeek V4 Flash",
+    inRate: 0.0765,
+    outRate: 0.153,
+    provider: "DeepSeek",
+  },
+  "openai/gpt-5.6-luna": {
+    label: "GPT-5.6 Luna",
+    inRate: 0.10, // $0.10 / 1M tokens
+    outRate: 0.60, // $0.60 / 1M tokens
+    provider: "OpenAI",
+  },
+  "google/gemini-2.5-flash-lite": {
+    label: "Gemini 2.5 Flash Lite",
+    inRate: 0.10,
+    outRate: 0.40,
+    provider: "Google",
+  },
+};
+
+export function getModelInfo(model?: string | null) {
+  if (!model) return { label: "AI Model", inRate: 0.10, outRate: 0.50, provider: "AI" };
+  return (
+    MODEL_PRICING[model] ?? {
+      label: model.split("/")[1] || model,
+      inRate: 0.10,
+      outRate: 0.50,
+      provider: model.split("/")[0] || "AI",
+    }
+  );
+}
+
+export function calculateCost(
+  model: string | null | undefined,
+  tokensIn: number | null,
+  tokensOut: number | null
+) {
+  const info = getModelInfo(model);
+  const tIn = tokensIn ?? 0;
+  const tOut = tokensOut ?? 0;
+  const inCostUsd = (tIn / 1_000_000) * info.inRate;
+  const outCostUsd = (tOut / 1_000_000) * info.outRate;
+  const totalUsd = inCostUsd + outCostUsd;
+  const totalBdt = totalUsd * 122; // 1 USD ~ 122 BDT
+  return {
+    totalUsd: totalUsd < 0.00001 && totalUsd > 0 ? "<$0.00001" : `$${totalUsd.toFixed(5)}`,
+    totalBdt: totalBdt < 0.001 && totalBdt > 0 ? "<৳0.001" : `৳${totalBdt.toFixed(3)}`,
+    rawUsd: totalUsd,
+    rawBdt: totalBdt,
+    inCostUsd,
+    outCostUsd,
+    info,
+  };
+}
+
 const KIND_CONFIG: Record<
   string,
   { label: string; bg: string; text: string; icon: string; dot: string }
 > = {
+  intent_classification: {
+    label: "Intent Routing",
+    bg: "bg-[#F0FDF4]",
+    text: "text-[#16A34A]",
+    icon: "🎯",
+    dot: "#16A34A",
+  },
   inbox_reply: {
     label: "Inbox reply",
     bg: "bg-[#E8F5EF]",
@@ -453,11 +525,8 @@ export default function ActivityPage() {
               {loading ? "…" : (stats?.credits ?? 0).toLocaleString("en-IN")}
             </span>
           </div>
-          <div className="mt-2 flex items-center justify-between text-xs text-[#64748B]">
-            <span>0% of total credits</span>
-          </div>
-          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#F1F5F9]">
-            <div className="h-full w-0 rounded-full bg-[#087F5B]" />
+          <div className="mt-2 flex items-center justify-between text-xs text-[#087F5B] font-semibold">
+            <span>≈ ${(((stats?.credits ?? 0) * 0.0001)).toFixed(3)} USD (৳{(((stats?.credits ?? 0) * 0.0001 * 122)).toFixed(2)})</span>
           </div>
         </Card>
       </div>
@@ -860,14 +929,14 @@ export default function ActivityPage() {
               <table className="w-full text-left text-xs">
                 <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC] text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">
                   <tr>
-                    <th className="w-12 px-4 py-3 text-center">#</th>
-                    <th className="px-4 py-3">Action</th>
-                    <th className="px-4 py-3">Details</th>
-                    <th className="px-4 py-3">Tokens In</th>
-                    <th className="px-4 py-3">Tokens Out</th>
-                    <th className="px-4 py-3">Credits</th>
-                    <th className="px-4 py-3">When</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
+                    <th className="w-10 px-3.5 py-3 text-center">#</th>
+                    <th className="px-3.5 py-3">Process / Action</th>
+                    <th className="px-3.5 py-3">Model</th>
+                    <th className="px-3.5 py-3">Tokens (In / Out)</th>
+                    <th className="px-3.5 py-3">Est. Cost</th>
+                    <th className="px-3.5 py-3">Credits</th>
+                    <th className="px-3.5 py-3">When</th>
+                    <th className="px-3.5 py-3 text-right">Details</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5E7EB]">
@@ -878,6 +947,7 @@ export default function ActivityPage() {
                       amount != null && amount !== 0
                         ? `-${amount.toLocaleString("en-IN")}`
                         : "—";
+                    const cost = calculateCost(r.model, r.tokensIn, r.tokensOut);
 
                     return (
                       <tr
@@ -885,12 +955,12 @@ export default function ActivityPage() {
                         onClick={() => setSelectedActivity(r)}
                         className="cursor-pointer transition-colors hover:bg-[#FAFCFB]"
                       >
-                        <td className="px-4 py-3.5 text-center font-mono text-[11px] text-[#94A3B8]">
+                        <td className="px-3.5 py-3.5 text-center font-mono text-[11px] text-[#94A3B8]">
                           {(page - 1) * pageSize + idx + 1}
                         </td>
 
                         {/* Action Pill */}
-                        <td className="px-4 py-3.5">
+                        <td className="px-3.5 py-3.5">
                           <span
                             className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold ${cfg.bg} ${cfg.text}`}
                           >
@@ -899,50 +969,51 @@ export default function ActivityPage() {
                           </span>
                         </td>
 
-                        {/* Details Description */}
-                        <td className="max-w-[280px] px-4 py-3.5">
-                          <div className="truncate font-medium text-[#172033]">
-                            {r.kind === "inbox_reply"
-                              ? "Replied to customer inquiry"
-                              : r.kind === "order_extraction"
-                              ? "Extracted order parameters from chat"
-                              : r.kind === "summarization"
-                              ? "Summarized conversation thread"
-                              : r.kind === "follow_up"
-                              ? "Scheduled follow-up reminder"
-                              : r.kind === "voice_transcription"
-                              ? "Transcribed customer voice message"
-                              : "Processed automated AI action"}
+                        {/* Model */}
+                        <td className="px-3.5 py-3.5">
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-[#172033]">
+                              {cost.info.label}
+                            </span>
+                            <span className="text-[10px] text-[#64748B]">
+                              ${cost.info.inRate}/M in • ${cost.info.outRate}/M out
+                            </span>
                           </div>
-                          {r.model && (
-                            <div className="text-[11px] text-[#64748B]">
-                              Model: {r.model}
-                            </div>
-                          )}
                         </td>
 
-                        {/* Tokens In */}
-                        <td className="px-4 py-3.5 font-mono text-[#334155]">
-                          {(r.tokensIn ?? 0).toLocaleString("en-IN")}
+                        {/* Tokens In / Out */}
+                        <td className="px-3.5 py-3.5 font-mono text-[#334155]">
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <span className="text-[#087F5B] font-medium">{(r.tokensIn ?? 0).toLocaleString("en-IN")} in</span>
+                            <span className="text-[#94A3B8]">/</span>
+                            <span className="text-[#2563EB] font-medium">{(r.tokensOut ?? 0).toLocaleString("en-IN")} out</span>
+                          </div>
                         </td>
 
-                        {/* Tokens Out */}
-                        <td className="px-4 py-3.5 font-mono text-[#334155]">
-                          {(r.tokensOut ?? 0).toLocaleString("en-IN")}
+                        {/* Est. Cost */}
+                        <td className="px-3.5 py-3.5">
+                          <div className="flex flex-col">
+                            <span className="font-mono font-semibold text-[#087F5B]">
+                              {cost.totalUsd}
+                            </span>
+                            <span className="text-[10px] text-[#64748B]">
+                              {cost.totalBdt}
+                            </span>
+                          </div>
                         </td>
 
                         {/* Credits */}
-                        <td className="px-4 py-3.5 font-semibold text-[#172033]">
+                        <td className="px-3.5 py-3.5 font-semibold text-[#D97706]">
                           {credits}
                         </td>
 
                         {/* When */}
-                        <td className="px-4 py-3.5 text-[#64748B]">
+                        <td className="px-3.5 py-3.5 text-[#64748B]">
                           {timeAgo(r.createdAt)}
                         </td>
 
                         {/* Action View button */}
-                        <td className="px-4 py-3.5 text-right">
+                        <td className="px-3.5 py-3.5 text-right">
                           <Button
                             variant="ghost"
                             onClick={(e) => {
@@ -951,7 +1022,7 @@ export default function ActivityPage() {
                             }}
                             className="h-7 border-[#D9E2E8] bg-white px-2.5 text-xs font-semibold text-[#172033] shadow-2xs hover:bg-[#F8FAFC]"
                           >
-                            View
+                            Inspect
                           </Button>
                         </td>
                       </tr>
@@ -970,6 +1041,7 @@ export default function ActivityPage() {
                   amount != null && amount !== 0
                     ? `-${amount.toLocaleString("en-IN")}`
                     : "—";
+                const cost = calculateCost(r.model, r.tokensIn, r.tokensOut);
 
                 return (
                   <div
@@ -977,7 +1049,6 @@ export default function ActivityPage() {
                     onClick={() => setSelectedActivity(r)}
                     className="p-4 space-y-3 cursor-pointer active:bg-[#FAFCFB] transition-colors"
                   >
-                    {/* Header: Action pill + Time */}
                     <div className="flex items-center justify-between">
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold ${cfg.bg} ${cfg.text}`}
@@ -991,62 +1062,19 @@ export default function ActivityPage() {
                       </span>
                     </div>
 
-                    {/* Details Box */}
-                    <div className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-3 text-xs space-y-1">
-                      <div className="font-medium text-[#172033]">
-                        {r.kind === "inbox_reply"
-                          ? "Replied to customer inquiry"
-                          : r.kind === "order_extraction"
-                          ? "Extracted order parameters from chat"
-                          : r.kind === "summarization"
-                          ? "Summarized conversation thread"
-                          : r.kind === "follow_up"
-                          ? "Scheduled follow-up reminder"
-                          : r.kind === "voice_transcription"
-                          ? "Transcribed customer voice message"
-                          : "Processed automated AI action"}
+                    <div className="rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-3 text-xs space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[#64748B]">Model:</span>
+                        <span className="font-semibold text-[#172033]">{cost.info.label}</span>
                       </div>
-                      {r.model && (
-                        <div className="text-[11px] text-[#64748B]">
-                          Model: {r.model}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Metrics Grid */}
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="rounded-lg bg-[#F1F5F9] p-2">
-                        <div className="text-[10px] text-[#64748B]">Tokens In</div>
-                        <div className="font-mono text-xs font-semibold text-[#101828]">
-                          {(r.tokensIn ?? 0).toLocaleString("en-IN")}
-                        </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[#64748B]">Tokens:</span>
+                        <span className="font-mono text-[#334155]">{(r.tokensIn ?? 0).toLocaleString()} in / {(r.tokensOut ?? 0).toLocaleString()} out</span>
                       </div>
-                      <div className="rounded-lg bg-[#F1F5F9] p-2">
-                        <div className="text-[10px] text-[#64748B]">Tokens Out</div>
-                        <div className="font-mono text-xs font-semibold text-[#101828]">
-                          {(r.tokensOut ?? 0).toLocaleString("en-IN")}
-                        </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[#64748B]">Cost / Credits:</span>
+                        <span className="font-semibold text-[#087F5B]">{cost.totalUsd} ({cost.totalBdt}) • {credits} creds</span>
                       </div>
-                      <div className="rounded-lg bg-[#F1F5F9] p-2">
-                        <div className="text-[10px] text-[#64748B]">Credits</div>
-                        <div className="font-mono text-xs font-bold text-[#087F5B]">
-                          {credits}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Footer: View Details Button */}
-                    <div className="flex justify-end pt-1">
-                      <Button
-                        variant="ghost"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedActivity(r);
-                        }}
-                        className="h-8 w-full border-[#D9E2E8] bg-white text-xs font-semibold text-[#172033] shadow-2xs hover:bg-[#F8FAFC]"
-                      >
-                        View Full Trace Details
-                      </Button>
                     </div>
                   </div>
                 );
@@ -1124,127 +1152,157 @@ export default function ActivityPage() {
       </Card>
 
       {/* 7. Activity Detail Slide-in Right Drawer */}
-      {selectedActivity && (
-        <>
-          <div
-            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
-            onClick={() => setSelectedActivity(null)}
-          />
+      {selectedActivity && (() => {
+        const cost = calculateCost(selectedActivity.model, selectedActivity.tokensIn, selectedActivity.tokensOut);
+        const cfg = getKindConfig(selectedActivity.kind);
 
-          <div className="fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-[#E5E7EB] bg-white shadow-2xl transition-transform duration-200 sm:w-[480px]">
-            {/* Drawer Header */}
-            <div className="flex items-center justify-between border-b border-[#E5E7EB] bg-white px-6 py-4">
-              <div className="flex items-center gap-2.5">
-                <h2 className="font-display text-base font-bold text-[#101828]">
-                  AI Activity Details
-                </h2>
-                <span
-                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-                    getKindConfig(selectedActivity.kind).bg
-                  } ${getKindConfig(selectedActivity.kind).text}`}
+        return (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+              onClick={() => setSelectedActivity(null)}
+            />
+
+            <div className="fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-[#E5E7EB] bg-white shadow-2xl transition-transform duration-200 sm:w-[500px]">
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between border-b border-[#E5E7EB] bg-white px-6 py-4">
+                <div className="flex items-center gap-2.5">
+                  <h2 className="font-display text-base font-bold text-[#101828]">
+                    AI Activity Breakdown
+                  </h2>
+                  <span
+                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${cfg.bg} ${cfg.text}`}
+                  >
+                    {cfg.label}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  aria-label="Close drawer"
+                  onClick={() => setSelectedActivity(null)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] hover:bg-[#F1F5F9]"
                 >
-                  {getKindConfig(selectedActivity.kind).label}
-                </span>
+                  <IconX size={18} />
+                </button>
               </div>
 
-              <button
-                type="button"
-                aria-label="Close drawer"
-                onClick={() => setSelectedActivity(null)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] hover:bg-[#F1F5F9]"
-              >
-                <IconX size={18} />
-              </button>
-            </div>
-
-            {/* Drawer Body */}
-            <div className="no-scrollbar flex-1 space-y-5 overflow-y-auto p-6 text-xs">
-              {/* Summary Box */}
-              <div className="rounded-xl border border-[#E5E7EB] bg-[#FAFCFB] p-4 space-y-2.5">
-                <div className="flex justify-between">
-                  <span className="text-[#64748B]">Action Type</span>
-                  <span className="font-semibold text-[#101828]">
-                    {getKindConfig(selectedActivity.kind).label}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#64748B]">Status</span>
-                  <span className="font-semibold text-[#087F5B]">Completed</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#64748B]">Model</span>
-                  <span className="font-mono text-[#172033]">
-                    {selectedActivity.model ?? "gemini-2.5-flash"}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#64748B]">Timestamp</span>
-                  <span className="text-[#334155]">
-                    {new Date(selectedActivity.createdAt).toLocaleString()}
-                  </span>
-                </div>
-              </div>
-
-              {/* Token & Credit Metrics */}
-              <div>
-                <div className="text-xs font-semibold text-[#172033]">
-                  Token & Resource Consumption
-                </div>
-                <div className="mt-2 grid grid-cols-3 gap-2.5">
-                  <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 text-center">
-                    <div className="text-[11px] text-[#64748B]">Tokens In</div>
-                    <div className="mt-1 font-mono text-sm font-bold text-[#087F5B]">
-                      {(selectedActivity.tokensIn ?? 0).toLocaleString("en-IN")}
-                    </div>
+              {/* Drawer Body */}
+              <div className="no-scrollbar flex-1 space-y-5 overflow-y-auto p-6 text-xs">
+                {/* Process Summary Box */}
+                <div className="rounded-xl border border-[#E5E7EB] bg-[#FAFCFB] p-4 space-y-2.5">
+                  <div className="flex justify-between">
+                    <span className="text-[#64748B]">Process Type</span>
+                    <span className="font-semibold text-[#101828]">
+                      {cfg.label}
+                    </span>
                   </div>
-
-                  <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 text-center">
-                    <div className="text-[11px] text-[#64748B]">Tokens Out</div>
-                    <div className="mt-1 font-mono text-sm font-bold text-[#2563EB]">
-                      {(selectedActivity.tokensOut ?? 0).toLocaleString("en-IN")}
-                    </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#64748B]">Model Name</span>
+                    <span className="font-semibold text-[#087F5B]">
+                      {cost.info.label} ({selectedActivity.model ?? "default"})
+                    </span>
                   </div>
-
-                  <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 text-center">
-                    <div className="text-[11px] text-[#64748B]">Credits Used</div>
-                    <div className="mt-1 font-mono text-sm font-bold text-[#D97706]">
-                      {selectedActivity.creditsUsed != null
-                        ? selectedActivity.creditsUsed
-                        : "0"}
-                    </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#64748B]">Provider Rates</span>
+                    <span className="font-mono text-[#334155]">
+                      ${cost.info.inRate}/M in • ${cost.info.outRate}/M out
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#64748B]">Timestamp</span>
+                    <span className="text-[#334155]">
+                      {new Date(selectedActivity.createdAt).toLocaleString()}
+                    </span>
                   </div>
                 </div>
+
+                {/* Single Process Cost Breakdown Box */}
+                <div className="rounded-xl border border-[#B7DEC9] bg-[#E8F5EF]/50 p-4 space-y-2">
+                  <div className="text-xs font-bold text-[#065F46] uppercase tracking-wide">
+                    💰 Single Process Cost Breakdown
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-[#065F46]">Input Tokens Cost:</span>
+                    <span className="font-mono font-medium text-[#101828]">
+                      ${cost.inCostUsd.toFixed(6)} ({((selectedActivity.tokensIn ?? 0)).toLocaleString()} tokens @ ${cost.info.inRate}/M)
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-[#065F46]">Output Tokens Cost:</span>
+                    <span className="font-mono font-medium text-[#101828]">
+                      ${cost.outCostUsd.toFixed(6)} ({((selectedActivity.tokensOut ?? 0)).toLocaleString()} tokens @ ${cost.info.outRate}/M)
+                    </span>
+                  </div>
+                  <div className="border-t border-[#B7DEC9] pt-2 flex justify-between font-bold text-sm text-[#065F46]">
+                    <span>Total Cost:</span>
+                    <span>{cost.totalUsd} USD ≈ {cost.totalBdt} BDT</span>
+                  </div>
+                </div>
+
+                {/* Token & Credit Metrics */}
+                <div>
+                  <div className="text-xs font-semibold text-[#172033]">
+                    Resource & Credits Consumed
+                  </div>
+                  <div className="mt-2 grid grid-cols-3 gap-2.5">
+                    <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 text-center">
+                      <div className="text-[11px] text-[#64748B]">Tokens In</div>
+                      <div className="mt-1 font-mono text-sm font-bold text-[#087F5B]">
+                        {(selectedActivity.tokensIn ?? 0).toLocaleString("en-IN")}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 text-center">
+                      <div className="text-[11px] text-[#64748B]">Tokens Out</div>
+                      <div className="mt-1 font-mono text-sm font-bold text-[#2563EB]">
+                        {(selectedActivity.tokensOut ?? 0).toLocaleString("en-IN")}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-[#E5E7EB] bg-white p-3 text-center">
+                      <div className="text-[11px] text-[#64748B]">Credits Deducted</div>
+                      <div className="mt-1 font-mono text-sm font-bold text-[#D97706]">
+                        {selectedActivity.creditsUsed != null
+                          ? selectedActivity.creditsUsed
+                          : "0"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Context / Action Details */}
+                <div>
+                  <div className="text-xs font-semibold text-[#172033]">
+                    What Happened in this Step
+                  </div>
+                  <div className="mt-2 rounded-xl border border-[#E5E7EB] bg-[#F8FAFC] p-3.5 text-xs text-[#334155] leading-relaxed">
+                    {selectedActivity.kind === "intent_classification"
+                      ? "Fast DeepSeek router parsed the customer message, recognized intent, and selected exact prompt slices before passing to the generator."
+                      : selectedActivity.kind === "inbox_reply"
+                      ? "The AI sales closer drafted a personalized response following store rules and catalog specs."
+                      : selectedActivity.kind === "order_extraction"
+                      ? "Extracted customer name, phone, address, and size from conversation context."
+                      : selectedActivity.kind === "summarization"
+                      ? "Summarized earlier conversation history into compact notes."
+                      : "Executed automated AI operation."}
+                  </div>
+                </div>
               </div>
 
-              {/* Context / Action Details */}
-              <div>
-                <div className="text-xs font-semibold text-[#172033]">
-                  Action Description
-                </div>
-                <div className="mt-2 rounded-xl border border-[#B7DEC9] bg-[#E8F5EF]/60 p-3.5 text-xs text-[#065F46]">
-                  {selectedActivity.kind === "inbox_reply"
-                    ? "The AI sales copilot analyzed the customer's question, retrieved matching products from the store catalog, and drafted a warm sales response in Bangla."
-                    : selectedActivity.kind === "order_extraction"
-                    ? "The AI copilot recognized customer address, size, and payment details from conversation context and structured the order."
-                    : selectedActivity.kind === "summarization"
-                    ? "Summarized chat history into compact sales notes for quick shopkeeper review."
-                    : "Automated AI task executed successfully."}
-                </div>
+              {/* Drawer Footer */}
+              <div className="border-t border-[#E5E7EB] bg-white p-4">
+                <Button
+                  onClick={() => setSelectedActivity(null)}
+                  className="w-full bg-[#087F5B] text-xs font-semibold text-white hover:bg-[#066B4D]"
+                >
+                  Close
+                </Button>
               </div>
             </div>
-
-            {/* Drawer Footer */}
-            <div className="border-t border-[#E5E7EB] bg-white p-4">
-              <Button
-                onClick={() => setSelectedActivity(null)}
-                className="w-full bg-[#087F5B] text-xs font-semibold text-white hover:bg-[#066B4D]"
-              >
-                Close Details
-              </Button>
-            </div>
-          </div>
-        </>
-      )}
+          </>
+        );
+      })()}
     </div>
   );
 }

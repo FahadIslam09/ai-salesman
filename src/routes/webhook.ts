@@ -507,15 +507,19 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
     });
   }
   const summary = summarizeRes?.summary ?? null;
+  const history = await ChatService.getRecentChatHistory(conversation.id);
+  const text = items.map((i) => i.text).filter(Boolean).join("\n");
+  const imageUrls = items.flatMap((i) => i.attachments ?? []);
+
   const basePrompt = await buildPagePrompt(page.id, botConfig, {
     storeName: page.name,
     customerName: customer.name ?? undefined,
     customerId: customer.id,
+    messageText: text,
+    hasImages: imageUrls.length > 0,
+    history,
   });
   const systemPrompt = summary ? `${basePrompt}\n\nConversation summary so far:\n${summary}` : basePrompt;
-  const history = await ChatService.getRecentChatHistory(conversation.id);
-  const text = items.map((i) => i.text).filter(Boolean).join("\n");
-  const imageUrls = items.flatMap((i) => i.attachments ?? []);
 
   let reply;
   if (imageUrls.length > 0) {
@@ -874,9 +878,11 @@ async function handleFeedEvents(entry: any) {
     } catch (err) {
       console.error("failed to fetch post context:", err);
     }
-    console.log("[feed] post context:", JSON.stringify({ caption, hasImage: !!postImage, commenterId }));
-
-    const systemPrompt = await buildPagePrompt(page.id, botConfig, { storeName: page.name });
+    const systemPrompt = await buildPagePrompt(page.id, botConfig, {
+      storeName: page.name,
+      messageText: message,
+      hasImages: !!postImage,
+    });
 
     // Step 1: identify the product and write the private message (or NONE).
     const privatePrompt = `${systemPrompt}

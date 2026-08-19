@@ -121,6 +121,7 @@ async function processOne(fu: typeof followUps.$inferSelect) {
     storeName: page.name,
     customerName: customer.name ?? undefined,
     customerId: customer.id,
+    activeModules: new Set(["pricing_and_photos", "checkout_and_order"]),
   });
 
   const summarizeRes = conversation ? await ChatService.maybeSummarize(conversation.id) : null;

@@ -1,9 +1,11 @@
 import { Router } from "express";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { db } from "../../db/db";
-import { customers, conversations, sales } from "../../db/schema";
+import { customers, conversations, sales, pages, orders } from "../../db/schema";
 import { requireAuth } from "../middleware/auth";
 import { assertPageOwnedByUser } from "../middleware/pageAccess";
+import { getUserProfile } from "../../services/facebookService";
+import { decryptToken } from "../../services/tokenService";
 
 export const customersRouter = Router();
 customersRouter.use(requireAuth);
@@ -30,6 +32,50 @@ customersRouter.get("/", async (req, res) => {
     .where(and(...conditions))
     .orderBy(desc(customers.lastActiveAt))
     .limit(100);
+
+  // Auto-resolve any unknown customer names
+  const unknownRows = rows.filter(
+    (r) => !r.name || r.name.trim().toLowerCase() === "unknown" || r.name.trim().toLowerCase() === "unknown customer"
+  );
+
+  if (unknownRows.length > 0) {
+    const [page] = await db.select().from(pages).where(eq(pages.id, pageId)).limit(1);
+    const token = page ? decryptToken(page.encryptedAccessToken, page.tokenIv) : null;
+
+    for (const c of unknownRows) {
+      // 1. Try order details
+      const [order] = await db
+        .select()
+        .from(orders)
+        .where(eq(orders.customerId, c.id))
+        .orderBy(desc(orders.createdAt))
+        .limit(1);
+
+      if (order?.customerName) {
+        c.name = order.customerName;
+        await db.update(customers).set({ name: c.name }).where(eq(customers.id, c.id));
+        continue;
+      }
+
+      // 2. Try Facebook Graph API
+      if (token && c.psid) {
+        try {
+          const profile = await getUserProfile(token, c.psid);
+          if (profile.name && profile.name.trim().toLowerCase() !== "unknown") {
+            c.name = profile.name.trim();
+            c.profilePicUrl = profile.profilePicUrl ?? c.profilePicUrl;
+            await db
+              .update(customers)
+              .set({ name: c.name, profilePicUrl: c.profilePicUrl })
+              .where(eq(customers.id, c.id));
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }
+
   res.json(rows);
 });
 

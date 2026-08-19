@@ -419,28 +419,40 @@ async function handleMessagingEvents(entry: any) {
     if (!combinedText && (!attachments || attachments.length === 0)) continue;
 
     const customer = await ChatService.getOrCreateCustomer(page.id, senderId);
-    if (!customer.name || customer.name.toLowerCase() === "unknown" || customer.name.toLowerCase() === "unknown customer") {
-      // 1. Try extracting from text if customer introduced themselves
-      if (combinedText) {
-        const extractedFromText = extractNameFromGreeting(combinedText);
-        if (extractedFromText) {
+    const isUnknownName =
+      !customer.name ||
+      customer.name.trim().toLowerCase() === "unknown" ||
+      customer.name.trim().toLowerCase() === "unknown customer";
+
+    if (isUnknownName) {
+      // 1. Fetch real Facebook profile from Graph API
+      try {
+        const token = decryptToken(page.encryptedAccessToken, page.tokenIv);
+        const profile = await getUserProfile(token, senderId);
+        if (profile.name && profile.name.trim().toLowerCase() !== "unknown") {
           await db
             .update(customers)
-            .set({ name: extractedFromText })
+            .set({ name: profile.name.trim(), profilePicUrl: profile.profilePicUrl ?? null })
             .where(eq(customers.id, customer.id));
-          customer.name = extractedFromText;
+          customer.name = profile.name.trim();
+          console.log(`[Customer Profile] Synced Facebook name for PSID ${senderId}: "${customer.name}"`);
         }
+      } catch (err: any) {
+        console.error(`[Customer Profile] Error fetching user profile:`, err?.message);
       }
 
-      // 2. Try Facebook Graph API user profile
-      if (!customer.name) {
-        const profile = await getUserProfile(decryptToken(page.encryptedAccessToken, page.tokenIv), senderId);
-        if (profile.name) {
-          await db
-            .update(customers)
-            .set({ name: profile.name, profilePicUrl: profile.profilePicUrl ?? null })
-            .where(eq(customers.id, customer.id));
-          customer.name = profile.name;
+      // 2. Try extracting from text if customer introduced themselves (e.g., "আমি ফাহাদ")
+      if (!customer.name || customer.name.trim().toLowerCase() === "unknown" || customer.name.trim().toLowerCase() === "unknown customer") {
+        if (combinedText) {
+          const extractedFromText = extractNameFromGreeting(combinedText);
+          if (extractedFromText) {
+            await db
+              .update(customers)
+              .set({ name: extractedFromText })
+              .where(eq(customers.id, customer.id));
+            customer.name = extractedFromText;
+            console.log(`[Customer Profile] Extracted greeting name for PSID ${senderId}: "${customer.name}"`);
+          }
         }
       }
     }

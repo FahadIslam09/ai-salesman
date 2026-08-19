@@ -148,28 +148,26 @@ export class ChatService {
       .limit(1);
     if (!conversation) return null;
 
-    let overflow;
-    if (conversation.summarizedUpto) {
-      overflow = await db
-        .select()
-        .from(messages)
-        .where(and(eq(messages.conversationId, conversationId), gt(messages.createdAt, conversation.summarizedUpto)))
-        .orderBy(asc(messages.createdAt))
-        .limit(100);
-    } else {
-      const all = await db
-        .select()
-        .from(messages)
-        .where(eq(messages.conversationId, conversationId))
-        .orderBy(asc(messages.createdAt));
-      if (all.length > 15) overflow = all.slice(0, all.length - 15);
+    const unsummarized = conversation.summarizedUpto
+      ? await db
+          .select()
+          .from(messages)
+          .where(and(eq(messages.conversationId, conversationId), gt(messages.createdAt, conversation.summarizedUpto)))
+          .orderBy(asc(messages.createdAt))
+      : await db
+          .select()
+          .from(messages)
+          .where(eq(messages.conversationId, conversationId))
+          .orderBy(asc(messages.createdAt));
+
+    // Trigger summarization every 6 messages
+    if (unsummarized.length < 6) {
+      return conversation.summary
+        ? { summary: conversation.summary, tokensIn: 0, tokensOut: 0, model: "unknown" }
+        : null;
     }
 
-    if (!overflow || overflow.length === 0) {
-      return conversation.summary ? { summary: conversation.summary, tokensIn: 0, tokensOut: 0, model: "unknown" } : null;
-    }
-
-    const excerpt = overflow.map((m) => `${m.role}: ${m.content}`).join("\n");
+    const excerpt = unsummarized.map((m) => `${m.role}: ${m.content}`).join("\n");
     const res = await generateReply(
       "Summarize this conversation excerpt in 2-3 short sentences. Output only the summary.",
       [{ role: "user", content: excerpt }]
@@ -177,7 +175,10 @@ export class ChatService {
     const combined = `${conversation.summary ? conversation.summary + " " : ""}${res.text.trim()}`;
     await db
       .update(conversations)
-      .set({ summary: combined, summarizedUpto: new Date(overflow[overflow.length - 1].createdAt) })
+      .set({
+        summary: combined,
+        summarizedUpto: new Date(unsummarized[unsummarized.length - 1].createdAt),
+      })
       .where(eq(conversations.id, conversationId));
     return { summary: combined, tokensIn: res.tokensIn, tokensOut: res.tokensOut, model: res.model };
   }

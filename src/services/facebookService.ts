@@ -76,10 +76,15 @@ export async function getUserProfile(
 ): Promise<{ name?: string; profilePicUrl?: string }> {
   try {
     const { data } = await axios.get(`${GRAPH}/${psid}`, {
-      params: { fields: "name,picture", access_token: pageAccessToken },
+      params: { fields: "name,first_name,last_name,profile_pic", access_token: pageAccessToken },
     });
-    return { name: data?.name, profilePicUrl: data?.picture?.data?.url };
-  } catch {
+    const fullName = data?.name || [data?.first_name, data?.last_name].filter(Boolean).join(" ");
+    return {
+      name: fullName ? String(fullName).trim() : undefined,
+      profilePicUrl: data?.profile_pic || data?.picture?.data?.url || undefined,
+    };
+  } catch (err: any) {
+    console.error(`[getUserProfile] failed for psid ${psid}:`, err?.response?.data?.error?.message ?? err?.message);
     return {};
   }
 }

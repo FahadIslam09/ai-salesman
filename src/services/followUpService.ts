@@ -121,7 +121,7 @@ async function processOne(fu: typeof followUps.$inferSelect) {
     storeName: page.name,
     customerName: customer.name ?? undefined,
     customerId: customer.id,
-    activeModules: new Set(["pricing", "checkout_and_order"]),
+    activeModules: new Set(["follow_up"]),
     intent: "follow_up",
   });
 

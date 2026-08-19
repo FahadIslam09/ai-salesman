@@ -303,9 +303,29 @@ async function handleWebhook(body: any) {
   }
 }
 
+// ponytail: simple in-memory Set for dedup. Entries expire after 5 min.
+// Fine for single-process; use Redis if scaling horizontally.
+const processedMids = new Map<string, number>();
+setInterval(() => {
+  const cutoff = Date.now() - 5 * 60 * 1000;
+  for (const [mid, ts] of processedMids) {
+    if (ts < cutoff) processedMids.delete(mid);
+  }
+}, 60_000);
+
 async function handleMessagingEvents(entry: any) {
   const eventsList: any[] = entry.messaging ?? [];
   for (const ev of eventsList) {
+    // Deduplicate: Facebook sometimes sends the same event twice
+    const mid: string | undefined = ev?.message?.mid;
+    if (mid) {
+      if (processedMids.has(mid)) {
+        console.log(`[webhook] Skipping duplicate message mid=${mid}`);
+        continue;
+      }
+      processedMids.set(mid, Date.now());
+    }
+
     const senderId: string | undefined = ev?.sender?.id;
     const recipientId: string | undefined = ev?.recipient?.id;
     if (!senderId || !recipientId) continue;

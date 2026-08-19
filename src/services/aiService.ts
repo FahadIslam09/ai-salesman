@@ -7,9 +7,11 @@ const client = new OpenAI({
 });
 
 // GPT-5.6 Luna handles the customer-facing reply (text + image). Gemini
-// handles voice transcription only.
+// handles voice transcription only. DeepSeek handles cheap internal tasks
+// like summarization.
 const AUDIO_MODEL = "google/gemini-2.5-flash-lite";
 const CHAT_MODEL = "openai/gpt-5.6-luna";
+const SUMMARIZE_MODEL = "deepseek/deepseek-chat";
 
 export interface AiReply {
   text: string;
@@ -50,13 +52,28 @@ export async function generateReply(systemPrompt: string, history: HistoryMsg[])
   const res = await client.chat.completions.create({
     model: CHAT_MODEL,
     messages: [{ role: "system", content: systemPrompt }, ...toOpenAiMessages(history)],
-    max_tokens: 500,
+    max_tokens: 250,
   });
   return {
     text: sanitizeText(res.choices[0]?.message?.content ?? ""),
     tokensIn: res.usage?.prompt_tokens ?? 0,
     tokensOut: res.usage?.completion_tokens ?? 0,
     model: CHAT_MODEL,
+  };
+}
+
+// Cheap DeepSeek model for internal summarization — no customer ever sees this output.
+export async function generateSummary(systemPrompt: string, history: HistoryMsg[]): Promise<AiReply> {
+  const res = await client.chat.completions.create({
+    model: SUMMARIZE_MODEL,
+    messages: [{ role: "system", content: systemPrompt }, ...toOpenAiMessages(history)],
+    max_tokens: 150,
+  });
+  return {
+    text: res.choices[0]?.message?.content?.trim() ?? "",
+    tokensIn: res.usage?.prompt_tokens ?? 0,
+    tokensOut: res.usage?.completion_tokens ?? 0,
+    model: SUMMARIZE_MODEL,
   };
 }
 
@@ -80,7 +97,7 @@ export async function generateReplyWithImages(
       ...toOpenAiMessages(history),
       { role: "user", content },
     ],
-    max_tokens: 500,
+    max_tokens: 250,
   });
   return {
     text: sanitizeText(res.choices[0]?.message?.content ?? ""),

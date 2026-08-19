@@ -2,7 +2,7 @@
 import { db } from "../db/db";
 import { conversations, messages, customers } from "../db/schema";
 import { and, asc, eq, desc, gt } from "drizzle-orm";
-import { generateReply } from "./aiService";
+import { generateSummary } from "./aiService";
 
 export class ChatService {
   /**
@@ -168,7 +168,7 @@ export class ChatService {
     }
 
     const excerpt = unsummarized.map((m) => `${m.role}: ${m.content}`).join("\n");
-    const res = await generateReply(
+    const res = await generateSummary(
       "Summarize this conversation excerpt in 2-3 short sentences. Output only the summary.",
       [{ role: "user", content: excerpt }]
     );

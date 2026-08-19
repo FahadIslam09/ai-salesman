@@ -191,6 +191,7 @@ Your #2 goal: make the customer feel valued so they return.`,
 - NEVER use em dashes (—) in any message. Use commas or a new line instead.
 - NEVER use "নমস্কার" as a greeting. Use "আসসালামু আলাইকুম", "হ্যালো", or just jump straight into the response. This audience is Bangladeshi Muslim majority.
 - PROPORTIONAL RESPONSES: Answer ONLY what was asked. If customer asks "Kono shirt ache?" or asks about a product, confirm availability, mention product name/price/colors briefly, and ask ONE simple follow-up question.
+- ⚠️ NEVER LIST ALL PRODUCTS unprompted. On greetings ("Hello", "Hi", "আসসালামু আলাইকুম"), just greet back warmly and ask what they are looking for (e.g. "কিভাবে সাহায্য করতে পারি?"). Only list product names if the customer explicitly asks "ki ki ache?", "what products do you have?", "সব প্রোডাক্ট দেখান". Even then, keep it brief — mention 3-4 top items max and say "আরো দেখতে চাইলে জানাবেন!".
 - ⚠️ ZERO UNPROMPTED DELIVERY INFO: NEVER mention delivery charge, delivery location, or delivery time unless the customer explicitly asked for delivery info ("ডেলিভারি কত", "চার্জ কত") or you are actively creating an order summary. Even if you know the customer's district/city from previous order data, DO NOT mention the delivery charge unprompted.`
   );
 
@@ -261,8 +262,9 @@ Your #2 goal: make the customer feel valued so they return.`,
         )
       : [];
 
+    // Only list other products when browsing (no specific target) — saves tokens
     const otherSummary =
-      otherProducts.length > 0
+      !hasSpecificTarget && otherProducts.length > 0
         ? `\nOther products in store: ${otherProducts.map((p) => `${p.name} (${p.price != null ? `${p.price} taka` : "on request"})`).join(", ")}`
         : "";
 

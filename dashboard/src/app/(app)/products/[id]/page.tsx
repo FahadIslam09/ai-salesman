@@ -527,10 +527,15 @@ export default function EditProductPage() {
           : null
       );
 
-      const finalStockStatus =
-        (effectiveStatus === "draft" || publishStatus === "draft" || publishStatus === "private")
-          ? "hidden"
-          : stockStatus;
+      // Determine final stockStatus:
+      // If saving as draft or private -> set to "hidden"
+      // If publishing -> if it was hidden (draft), activate as "available" (or keep user's chosen low_stock/out_of_stock)
+      let finalStockStatus: string;
+      if (effectiveStatus === "draft" || (!intendedStatus && publishStatus === "private")) {
+        finalStockStatus = "hidden";
+      } else {
+        finalStockStatus = stockStatus === "hidden" ? "available" : stockStatus;
+      }
 
       const fullDescription = [
         sizes.trim() ? `Sizes: ${sizes.trim()}` : null,
@@ -631,7 +636,15 @@ export default function EditProductPage() {
             className="h-10 rounded-lg bg-[#087F5B] px-5 text-xs font-semibold text-white shadow-xs hover:bg-[#066B4D] active:bg-[#05573D]"
           >
             <IconSend size={15} />
-            <span>{saving ? "Saving…" : "Save Changes"}</span>
+            <span>
+              {saving
+                ? publishStatus === "draft"
+                  ? "Publishing…"
+                  : "Saving…"
+                : publishStatus === "draft"
+                  ? "Publish Product"
+                  : "Save Changes"}
+            </span>
           </Button>
         </div>
       </div>

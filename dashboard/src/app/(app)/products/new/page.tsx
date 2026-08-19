@@ -453,10 +453,15 @@ export default function NewProductPage() {
           : null
       );
 
-      const finalStockStatus =
-        (effectiveStatus === "draft" || publishStatus === "draft" || publishStatus === "private")
-          ? "hidden"
-          : stockStatus;
+      // Determine final stockStatus:
+      // If saving as draft or private -> set to "hidden"
+      // If publishing -> activate as "available" (or keep user's chosen low_stock/out_of_stock)
+      let finalStockStatus: string;
+      if (effectiveStatus === "draft" || (!intendedStatus && publishStatus === "private")) {
+        finalStockStatus = "hidden";
+      } else {
+        finalStockStatus = stockStatus === "hidden" ? "available" : stockStatus;
+      }
 
       // Full product description combining sizes + instructions + rich description
       const fullDescription = [

@@ -16,6 +16,7 @@ import {
   IconCopy,
   IconPackage,
   IconCheck,
+  IconFileText,
   IconChevronDown,
   IconX,
   IconDownload,
@@ -945,25 +946,46 @@ export default function ProductsPage() {
                                 <span>Duplicate</span>
                               </button>
                               <div className="my-1 border-t border-[#E5E7EB]" />
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleQuickStock(
-                                    p,
-                                    p.stockStatus === "available"
-                                      ? "out_of_stock"
-                                      : "available"
-                                  )
-                                }
-                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-[#172033] hover:bg-[#F8FAFC]"
-                              >
-                                <IconCheck size={14} />
-                                <span>
-                                  {p.stockStatus === "available"
-                                    ? "Mark Out of Stock"
-                                    : "Mark In Stock"}
-                                </span>
-                              </button>
+                              {p.stockStatus === "hidden" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickStock(p, "available")}
+                                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-[#087F5B] hover:bg-[#E8F5EF]"
+                                >
+                                  <IconCheck size={14} />
+                                  <span>Publish Product</span>
+                                </button>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleQuickStock(
+                                        p,
+                                        p.stockStatus === "available"
+                                          ? "out_of_stock"
+                                          : "available"
+                                      )
+                                    }
+                                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-[#172033] hover:bg-[#F8FAFC]"
+                                  >
+                                    <IconCheck size={14} />
+                                    <span>
+                                      {p.stockStatus === "available"
+                                        ? "Mark Out of Stock"
+                                        : "Mark In Stock"}
+                                    </span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickStock(p, "hidden")}
+                                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC]"
+                                  >
+                                    <IconFileText size={14} />
+                                    <span>Move to Draft</span>
+                                  </button>
+                                </>
+                              )}
                               <div className="my-1 border-t border-[#E5E7EB]" />
                               <button
                                 type="button"
@@ -1046,23 +1068,46 @@ export default function ProductsPage() {
                               >
                                 Duplicate
                               </button>
-                              <span className="text-[#D0D5DD]">•</span>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleQuickStock(
-                                    p,
-                                    p.stockStatus === "available"
-                                      ? "out_of_stock"
-                                      : "available"
-                                  )
-                                }
-                                className="text-[#475569] hover:text-[#101828] hover:underline cursor-pointer"
-                              >
-                                {p.stockStatus === "available"
-                                  ? "Mark Out of Stock"
-                                  : "Mark In Stock"}
-                              </button>
+                              {p.stockStatus === "hidden" ? (
+                                <>
+                                  <span className="text-[#D0D5DD]">•</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickStock(p, "available")}
+                                    className="font-semibold text-[#087F5B] hover:text-[#066B4D] hover:underline cursor-pointer"
+                                  >
+                                    Publish Product
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-[#D0D5DD]">•</span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleQuickStock(
+                                        p,
+                                        p.stockStatus === "available"
+                                          ? "out_of_stock"
+                                          : "available"
+                                      )
+                                    }
+                                    className="text-[#475569] hover:text-[#101828] hover:underline cursor-pointer"
+                                  >
+                                    {p.stockStatus === "available"
+                                      ? "Mark Out of Stock"
+                                      : "Mark In Stock"}
+                                  </button>
+                                  <span className="text-[#D0D5DD]">•</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickStock(p, "hidden")}
+                                    className="text-[#64748B] hover:text-[#101828] hover:underline cursor-pointer"
+                                  >
+                                    Move to Draft
+                                  </button>
+                                </>
+                              )}
                               <span className="text-[#D0D5DD]">•</span>
                               <button
                                 type="button"

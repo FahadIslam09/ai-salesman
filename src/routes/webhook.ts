@@ -115,7 +115,7 @@ function stripImageMarkers(text: string): string {
   return text.replace(SEND_IMAGES_RE, "").trim();
 }
 
-const ORDER_CONFIRMED_RE = /\[ORDER_CONFIRMED\]/g;
+const ORDER_CONFIRMED_RE = /\[ORDER_CONFIRMED\]|\[ORDER_PLACED\]/gi;
 
 function stripOrderMarker(text: string): string {
   return text.replace(ORDER_CONFIRMED_RE, "").trim();
@@ -275,14 +275,55 @@ async function extractOrderDetails(
   const transcript = history
     .map((m) => `${m.role === "user" ? "Customer" : "Assistant"}: ${m.content}`)
     .join("\n");
-  const res = await generateReply(
-    `Extract the customer's order details from this conversation. Output ONLY a JSON object (no markdown, no other text) with exactly these keys: customerName, phone, address, productName, sizeVariant, paymentMethod ("cod" or "full"), totalAmount (number), deliveryCharge (number), remainingAmount (number), paymentNumber. Use null for any value you cannot determine. Output ONLY the JSON.`,
-    [{ role: "user", content: transcript }]
-  );
+
+  const phoneMatch = transcript.match(/(?:\+?8801|01)[3-9]\d{8}/);
+  const fallbackPhone = phoneMatch ? phoneMatch[0] : null;
+
   try {
+    const res = await generateReply(
+      `You are an order extraction engine for e-commerce in Bangladesh.
+Extract the customer's final confirmed order details from this chat transcript.
+Return ONLY valid JSON (no markdown, no explanations) with this exact schema:
+{
+  "customerName": string or null,
+  "phone": string or null,
+  "address": string or null,
+  "productName": string or null,
+  "sizeVariant": string or null,
+  "paymentMethod": "cod" or "full",
+  "totalAmount": number or null,
+  "deliveryCharge": number or null,
+  "remainingAmount": number or null,
+  "paymentNumber": string or null
+}`,
+      [{ role: "user", content: transcript }]
+    );
     const details = JSON.parse(extractJson(res.text));
+    if (!details.phone && fallbackPhone) {
+      details.phone = fallbackPhone;
+    }
     return { details, tokensIn: res.tokensIn, tokensOut: res.tokensOut, model: res.model };
-  } catch {
+  } catch (err) {
+    console.error("[Order Extraction] JSON extraction failed, using fallback:", err);
+    if (fallbackPhone) {
+      return {
+        details: {
+          customerName: null,
+          phone: fallbackPhone,
+          address: null,
+          productName: null,
+          sizeVariant: null,
+          paymentMethod: "cod",
+          totalAmount: null,
+          deliveryCharge: null,
+          remainingAmount: null,
+          paymentNumber: null,
+        },
+        tokensIn: 0,
+        tokensOut: 0,
+        model: "fallback",
+      };
+    }
     return null;
   }
 }
@@ -648,7 +689,11 @@ async function processIncomingBatch(page: any, botConfig: any, customer: any, co
 
   const knowledgeQuestions = extractKnowledgeRequests(reply.text);
   const imageRequests = extractImageRequests(reply.text);
-  const orderConfirmed = reply.text.includes("[ORDER_CONFIRMED]");
+  const orderConfirmed =
+    /\[ORDER_CONFIRMED\]/i.test(reply.text) ||
+    /\[ORDER_PLACED\]/i.test(reply.text) ||
+    (/অর্ডার(?:\w+)?\s*(কনফার্ম|confirm|গ্রহণ|নেওয়া|সম্পন্ন)/i.test(reply.text) &&
+      /(ফোন|মোবাইল|ঠিকানা|address|phone|টাকা|total|পাঠিয়ে)/i.test(reply.text));
   const followUpData = extractFollowUpData(reply.text, text);
   const cleanText = stripFollowUpMarker(stripOrderMarker(stripImageMarkers(stripKnowledgeMarkers(reply.text))));
 

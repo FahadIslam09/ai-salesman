@@ -1,5 +1,5 @@
 // ponytail: signature verification active only when APP_SECRET is set (dev-friendly).
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { Router } from "express";
 import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { env } from "../config/env";
@@ -34,10 +34,15 @@ webhookRouter.get("/", (req, res) => {
 webhookRouter.post("/", async (req, res) => {
   if (env.appSecret) {
     const signature = req.headers["x-hub-signature-256"];
-    const expected = signature
-      ? createHmac("sha256", env.appSecret).update((req as any).rawBody).digest("hex")
-      : null;
-    if (!signature || typeof signature !== "string" || signature !== `sha256=${expected}`) {
+    if (!signature || typeof signature !== "string") {
+      res.sendStatus(403);
+      return;
+    }
+    const expected = `sha256=${createHmac("sha256", env.appSecret).update((req as any).rawBody).digest("hex")}`;
+    const sigBuffer = Buffer.from(signature, "utf8");
+    const expBuffer = Buffer.from(expected, "utf8");
+
+    if (sigBuffer.length !== expBuffer.length || !timingSafeEqual(sigBuffer, expBuffer)) {
       res.sendStatus(403);
       return;
     }

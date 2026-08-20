@@ -67,7 +67,7 @@ Your job:
    - "photo_request": asking to see pictures/colors ("chobi dekhano jabe?", "Grape Shake color dekhbo")
    - "order_checkout": sending address, phone number, asking to order, payment method
    - "follow_up": customer is busy, postponing, or asking you to knock/message/follow-up later ("I am busy right now, please knock me after 1 hour", "amke 5 min por messgae dio", "1 ghonta por nok diyen", "ekhon busy", "kal shokale knock koren", "pore janabo")
-   - "policy_faq": asking return, exchange, warranty, refund policies
+   - "policy_faq": asking delivery charges, delivery area, delivery timing, return, exchange, warranty, refund policies ("delivery charge koto?", "delivery fee?", "delivery kobe pabo?", "return policy?")
    - "general_qa": greetings or general questions
 2. Identify target catalog product(s) being discussed (if any). Match to catalog names exactly.
 3. Select prompt modules needed: ["pricing", "negotiation", "photos", "checkout_and_order", "follow_up", "policies_and_faq"].

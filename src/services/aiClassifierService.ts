@@ -94,7 +94,7 @@ Output strict JSON only with schema:
           { role: "user", content: userContent },
         ],
         response_format: { type: "json_object" },
-        max_tokens: 120,
+        max_tokens: 200,
         temperature: 0.1,
       },
       {

@@ -52,7 +52,7 @@ export async function generateReply(systemPrompt: string, history: HistoryMsg[])
   const res = await client.chat.completions.create({
     model: CHAT_MODEL,
     messages: [{ role: "system", content: systemPrompt }, ...toOpenAiMessages(history)],
-    max_tokens: 250,
+    max_tokens: 650,
   });
   return {
     text: sanitizeText(res.choices[0]?.message?.content ?? ""),
@@ -67,7 +67,7 @@ export async function generateSummary(systemPrompt: string, history: HistoryMsg[
   const res = await client.chat.completions.create({
     model: SUMMARIZE_MODEL,
     messages: [{ role: "system", content: systemPrompt }, ...toOpenAiMessages(history)],
-    max_tokens: 150,
+    max_tokens: 250,
   });
   return {
     text: res.choices[0]?.message?.content?.trim() ?? "",
@@ -97,7 +97,7 @@ export async function generateReplyWithImages(
       ...toOpenAiMessages(history),
       { role: "user", content },
     ],
-    max_tokens: 250,
+    max_tokens: 650,
   });
   return {
     text: sanitizeText(res.choices[0]?.message?.content ?? ""),

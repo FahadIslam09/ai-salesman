@@ -602,7 +602,7 @@ adminRouter.patch("/pages/:id/bot", async (req, res) => {
  */
 adminRouter.get("/ai-usage", async (_req, res) => {
   try {
-    const allLogs = await db.select().from(usageLogs).orderBy(desc(usageLogs.createdAt)).limit(200);
+    const allLogs = await db.select().from(usageLogs).orderBy(desc(usageLogs.createdAt)).limit(1000);
     const allUsers = await db.select().from(users);
     const allPages = await db.select().from(pages);
 

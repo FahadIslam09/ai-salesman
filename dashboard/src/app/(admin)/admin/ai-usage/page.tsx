@@ -43,6 +43,8 @@ export default function AdminAiUsagePage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [modelFilter, setModelFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
 
   function load() {
     setLoading(true);
@@ -54,6 +56,10 @@ export default function AdminAiUsagePage() {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, modelFilter, pageSize]);
 
   if (loading || !data) {
     return (
@@ -76,6 +82,11 @@ export default function AdminAiUsagePage() {
     if (modelFilter !== "all" && l.model !== modelFilter) return false;
     return true;
   });
+
+  const totalPages = Math.ceil(filteredLogs.length / pageSize) || 1;
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, filteredLogs.length);
+  const paginatedLogs = filteredLogs.slice(startIndex, endIndex);
 
   return (
     <div className="space-y-6">
@@ -220,14 +231,14 @@ export default function AdminAiUsagePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E2E8F0] font-mono">
-              {filteredLogs.length === 0 ? (
+              {paginatedLogs.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-8 text-center text-[#94A3B8] font-sans">
                     No matching AI usage logs found.
                   </td>
                 </tr>
               ) : (
-                filteredLogs.map((log) => (
+                paginatedLogs.map((log) => (
                   <tr key={log.id} className="hover:bg-[#F8FAFC] transition-colors">
                     <td className="py-3 px-4 font-sans">
                       <div className="font-bold text-[#0F172A]">{log.userName}</div>
@@ -267,6 +278,60 @@ export default function AdminAiUsagePage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls Footer */}
+        {filteredLogs.length > 0 && (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-[#E2E8F0] px-4 py-3 bg-[#FAFBFB]">
+            <div className="flex items-center gap-2 text-xs text-[#64748B]">
+              <span>
+                Showing <strong className="text-[#0F172A]">{startIndex + 1}</strong> to{" "}
+                <strong className="text-[#0F172A]">{endIndex}</strong> of{" "}
+                <strong className="text-[#0F172A]">{filteredLogs.length}</strong> calls
+              </span>
+
+              <span className="text-[#CBD5E1]">|</span>
+
+              <div className="flex items-center gap-1.5">
+                <span>Rows per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                  className="rounded-lg border border-[#D9E2E8] bg-white px-2 py-1 text-xs font-semibold text-[#0F172A] focus:border-[#087F5B] focus:outline-none"
+                >
+                  <option value={10}>10</option>
+                  <option value={15}>15</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="flex items-center gap-1 rounded-xl border border-[#D9E2E8] bg-white px-3 py-1.5 text-xs font-semibold text-[#334155] shadow-2xs hover:bg-[#F8FAFC] disabled:opacity-40 transition-colors"
+              >
+                Previous
+              </button>
+
+              <span className="px-2 text-xs font-bold text-[#0F172A]">
+                Page {currentPage} of {totalPages}
+              </span>
+
+              <button
+                type="button"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="flex items-center gap-1 rounded-xl border border-[#D9E2E8] bg-white px-3 py-1.5 text-xs font-semibold text-[#334155] shadow-2xs hover:bg-[#F8FAFC] disabled:opacity-40 transition-colors"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   );

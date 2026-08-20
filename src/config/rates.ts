@@ -1,8 +1,18 @@
 // Pricing & billing configuration. The backend is the single source of truth
 // for credit math — the frontend only displays what the API returns.
 
-// Customer billing markup over actual provider cost (configurable).
-export const MARKUP_MULTIPLIER = Number(process.env.MARKUP_MULTIPLIER ?? "4");
+// Customer billing markup over actual provider cost (configurable via Super Admin).
+let activeMarkupMultiplier = Number(process.env.MARKUP_MULTIPLIER ?? "4");
+
+export function getMarkupMultiplier(): number {
+  return activeMarkupMultiplier;
+}
+
+export function setMarkupMultiplier(multiplier: number) {
+  if (multiplier > 0) {
+    activeMarkupMultiplier = multiplier;
+  }
+}
 
 // 1 credit = $0.0001 customer usage value.
 export const CREDIT_VALUE_USD = 0.0001;
@@ -35,7 +45,7 @@ export function costNanoUsd(model: string, tokensIn: number, tokensOut: number):
 
 // Customer billable cost after the markup multiplier, in nano-USD.
 export function billableNanoUsd(model: string, tokensIn: number, tokensOut: number): number {
-  return Math.round(costNanoUsd(model, tokensIn, tokensOut) * MARKUP_MULTIPLIER);
+  return Math.round(costNanoUsd(model, tokensIn, tokensOut) * getMarkupMultiplier());
 }
 
 // Credits consumed (in micro-credits) for a given model + token usage.
@@ -59,12 +69,13 @@ export interface UsageBill {
 
 export function computeBill(model: string, tokensIn: number, tokensOut: number): UsageBill {
   const apiCost = costNanoUsd(model, tokensIn, tokensOut);
+  const multiplier = getMarkupMultiplier();
   return {
     model,
     provider: providerFor(model),
     apiCostNanoUsd: apiCost,
-    markupMultiplier: MARKUP_MULTIPLIER,
-    billableCostNanoUsd: apiCost * MARKUP_MULTIPLIER,
+    markupMultiplier: multiplier,
+    billableCostNanoUsd: Math.round(apiCost * multiplier),
     creditsUsed: usageMicroCredits(model, tokensIn, tokensOut),
   };
 }

@@ -55,7 +55,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
       { href: "/admin/users", label: "Users Directory", icon: IconUsers },
       { href: "/admin/businesses", label: "Businesses / Tenants", icon: IconStore },
       { href: "/admin/credits", label: "Credits Management", icon: IconCoins },
-      { href: "/admin/finance", label: "Revenue & Payments", icon: IconTrendingUp },
+      { href: "/admin/finance", label: "Revenue & Profit", icon: IconTrendingUp },
     ],
   },
   {

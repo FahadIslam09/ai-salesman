@@ -18,10 +18,34 @@ import {
   systemSettings,
 } from "../../db/schema";
 import { requireSuperAdmin } from "../middleware/auth";
-import { MICRO_PER_CREDIT } from "../../config/rates";
+import {
+  MICRO_PER_CREDIT,
+  CREDIT_VALUE_USD,
+  getMarkupMultiplier,
+  setMarkupMultiplier,
+} from "../../config/rates";
+import { CREDIT_PACKAGES } from "../../config/packages";
 
 export const adminRouter = Router();
 adminRouter.use(requireSuperAdmin);
+
+const USD_TO_BDT = 122; // Standard BDT exchange rate per 1 USD
+
+// Sync markup multiplier from DB on first load
+(async () => {
+  try {
+    const [setting] = await db
+      .select()
+      .from(systemSettings)
+      .where(eq(systemSettings.key, "global_markup_multiplier"))
+      .limit(1);
+    if (setting?.value && !isNaN(Number(setting.value))) {
+      setMarkupMultiplier(Number(setting.value));
+    }
+  } catch {
+    // ignore
+  }
+})();
 
 /**
  * Helper to record administrative security audit logs
@@ -576,7 +600,7 @@ adminRouter.patch("/pages/:id/bot", async (req, res) => {
  * GET /api/admin/ai-usage
  * Cross-tenant AI Usage Analytics, Token distribution, and Model spend
  */
-adminRouter.get("/ai-usage", async (req, res) => {
+adminRouter.get("/ai-usage", async (_req, res) => {
   try {
     const allLogs = await db.select().from(usageLogs).orderBy(desc(usageLogs.createdAt)).limit(200);
     const allUsers = await db.select().from(users);
@@ -630,33 +654,271 @@ adminRouter.get("/ai-usage", async (req, res) => {
 
 /**
  * GET /api/admin/finance
- * Payment ledger, package sales, and revenue metrics
+ * Complete Revenue & Profit Intelligence Analytics
  */
 adminRouter.get("/finance", async (_req, res) => {
   try {
     const allPayments = await db.select().from(payments).orderBy(desc(payments.createdAt));
     const allUsers = await db.select().from(users);
+    const allPages = await db.select().from(pages);
+    const allLogs = await db.select().from(usageLogs);
+    const currentMultiplier = getMarkupMultiplier();
 
-    const userMap = new Map(allUsers.map((u) => [u.id, { name: u.name, email: u.email }]));
+    const userMap = new Map(allUsers.map((u) => [u.id, u]));
+    const paidPayments = allPayments.filter((p) => p.status === "paid");
 
-    const transactions = allPayments.map((p) => ({
-      id: p.id,
-      user: userMap.get(p.userId) || { name: "User", email: "—" },
-      provider: p.provider,
-      providerTxnId: p.providerTxnId,
-      package: p.package,
-      creditsGranted: p.creditsGranted / MICRO_PER_CREDIT,
-      amount: p.amount,
-      currency: p.currency,
-      status: p.status,
-      createdAt: p.createdAt,
+    // 1. Core Financial KPIs
+    const totalGrossRevenueBdt = paidPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const totalCreditsSold = paidPayments.reduce((sum, p) => sum + (p.creditsGranted || 0), 0) / MICRO_PER_CREDIT;
+    const totalCreditsUsed = allLogs.reduce((sum, l) => sum + (l.creditsUsed || 0), 0) / MICRO_PER_CREDIT;
+
+    const totalApiCostNanoUsd = allLogs.reduce((sum, l) => sum + (l.apiCostNanoUsd || 0), 0);
+    const totalApiCostUsd = totalApiCostNanoUsd / 1_000_000_000;
+    const totalAiCostBdt = Math.round(totalApiCostUsd * USD_TO_BDT);
+
+    const totalNetProfitBdt = Math.max(0, totalGrossRevenueBdt - totalAiCostBdt);
+    const profitMarginPct =
+      totalGrossRevenueBdt > 0 ? Math.round((totalNetProfitBdt / totalGrossRevenueBdt) * 100) : 75;
+
+    const uniquePayingUsers = new Set(paidPayments.map((p) => p.userId));
+    const payingCustomersCount = uniquePayingUsers.size;
+    const avgProfitPerCustomer =
+      payingCustomersCount > 0 ? Math.round(totalNetProfitBdt / payingCustomersCount) : 0;
+
+    // 2. Package Unit Economics (Starter, Growth, Pro, Business, Enterprise)
+    const packageEconomics = CREDIT_PACKAGES.map((pkg) => {
+      // 1 credit = $0.0001 usage value. Estimated cost = (credits * CREDIT_VALUE_USD) / multiplier
+      const estCostUsd = (pkg.totalCredits * CREDIT_VALUE_USD) / currentMultiplier;
+      const estCostBdt = Math.round(estCostUsd * USD_TO_BDT);
+      const profitBdt = Math.max(0, pkg.priceBdt - estCostBdt);
+      const marginPct = Math.round((profitBdt / pkg.priceBdt) * 100);
+
+      return {
+        id: pkg.id,
+        name: pkg.name,
+        priceBdt: pkg.priceBdt,
+        baseCredits: pkg.baseCredits,
+        bonusCredits: pkg.bonusCredits,
+        totalCredits: pkg.totalCredits,
+        estimatedAiCostUsd: Number(estCostUsd.toFixed(2)),
+        estimatedAiCostBdt: estCostBdt,
+        profitBdt,
+        profitMarginPct: marginPct,
+      };
+    });
+
+    // 3. Profitability by Plan / Package
+    const planMap = new Map<string, { count: number; users: Set<string>; revenue: number; credits: number }>();
+    for (const p of paidPayments) {
+      const pkgKey = p.package || "other";
+      const cur = planMap.get(pkgKey) || { count: 0, users: new Set<string>(), revenue: 0, credits: 0 };
+      cur.count++;
+      cur.users.add(p.userId);
+      cur.revenue += p.amount || 0;
+      cur.credits += (p.creditsGranted || 0) / MICRO_PER_CREDIT;
+      planMap.set(pkgKey, cur);
+    }
+
+    const profitabilityByPlan = Array.from(planMap.entries()).map(([planKey, data]) => {
+      const pkgInfo = CREDIT_PACKAGES.find((pkg) => pkg.id === planKey.toLowerCase());
+      const estCostUsd = (data.credits * CREDIT_VALUE_USD) / currentMultiplier;
+      const estCostBdt = Math.round(estCostUsd * USD_TO_BDT);
+      const profitBdt = Math.max(0, data.revenue - estCostBdt);
+      const marginPct = data.revenue > 0 ? Math.round((profitBdt / data.revenue) * 100) : 0;
+
+      return {
+        plan: pkgInfo?.name || planKey.toUpperCase(),
+        planId: planKey,
+        customerCount: data.users.size,
+        salesCount: data.count,
+        revenueBdt: data.revenue,
+        creditsIssued: Math.round(data.credits),
+        estimatedCostBdt: estCostBdt,
+        profitBdt,
+        profitMarginPct: marginPct,
+      };
+    });
+
+    // 4. Customer / Business Profitability Table
+    const userRevenueMap = new Map<string, number>();
+    const userTopPlanMap = new Map<string, string>();
+    for (const p of paidPayments) {
+      userRevenueMap.set(p.userId, (userRevenueMap.get(p.userId) || 0) + (p.amount || 0));
+      if (!userTopPlanMap.has(p.userId)) {
+        userTopPlanMap.set(p.userId, p.package);
+      }
+    }
+
+    const userAiCostMap = new Map<string, number>();
+    const userCreditsUsedMap = new Map<string, number>();
+    for (const l of allLogs) {
+      userAiCostMap.set(l.userId, (userAiCostMap.get(l.userId) || 0) + (l.apiCostNanoUsd || 0));
+      userCreditsUsedMap.set(l.userId, (userCreditsUsedMap.get(l.userId) || 0) + (l.creditsUsed || 0));
+    }
+
+    // Map user stores
+    const userStoreNamesMap = new Map<string, string[]>();
+    for (const p of allPages) {
+      const arr = userStoreNamesMap.get(p.userId) || [];
+      arr.push(p.name);
+      userStoreNamesMap.set(p.userId, arr);
+    }
+
+    const customerProfitability = allUsers.map((u) => {
+      const revBdt = userRevenueMap.get(u.id) || 0;
+      const nanoCost = userAiCostMap.get(u.id) || 0;
+      const costUsd = nanoCost / 1_000_000_000;
+      const costBdt = Math.round(costUsd * USD_TO_BDT);
+      const profitBdt = revBdt - costBdt;
+      const marginPct = revBdt > 0 ? Math.round((profitBdt / revBdt) * 100) : 0;
+      const creditsUsed = (userCreditsUsedMap.get(u.id) || 0) / MICRO_PER_CREDIT;
+
+      return {
+        userId: u.id,
+        name: u.name || "Tenant",
+        email: u.email,
+        stores: userStoreNamesMap.get(u.id) || [],
+        plan: userTopPlanMap.get(u.id) || "Free Tier",
+        revenueBdt: revBdt,
+        aiCostUsd: Number(costUsd.toFixed(4)),
+        aiCostBdt: costBdt,
+        profitBdt,
+        profitMarginPct: marginPct,
+        creditsUsed: Math.round(creditsUsed),
+      };
+    }).sort((a, b) => b.revenueBdt - a.revenueBdt);
+
+    // 5. Daily Financial Trend (Last 30 Days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const dailyDataMap = new Map<string, { revenueBdt: number; costBdt: number }>();
+    for (let i = 0; i <= 30; i++) {
+      const d = new Date(thirtyDaysAgo);
+      d.setDate(d.getDate() + i);
+      const key = d.toISOString().split("T")[0];
+      dailyDataMap.set(key, { revenueBdt: 0, costBdt: 0 });
+    }
+
+    for (const p of paidPayments) {
+      const key = new Date(p.createdAt).toISOString().split("T")[0];
+      if (dailyDataMap.has(key)) {
+        const cur = dailyDataMap.get(key)!;
+        cur.revenueBdt += p.amount || 0;
+      }
+    }
+
+    for (const l of allLogs) {
+      const key = new Date(l.createdAt).toISOString().split("T")[0];
+      if (dailyDataMap.has(key)) {
+        const cur = dailyDataMap.get(key)!;
+        const bdtCost = ((l.apiCostNanoUsd || 0) / 1_000_000_000) * USD_TO_BDT;
+        cur.costBdt += bdtCost;
+      }
+    }
+
+    const financialTrends = Array.from(dailyDataMap.entries()).map(([date, d]) => ({
+      date,
+      revenueBdt: d.revenueBdt,
+      costBdt: Math.round(d.costBdt),
+      profitBdt: Math.max(0, d.revenueBdt - Math.round(d.costBdt)),
     }));
 
+    // 6. Transactions Ledger
+    const transactions = allPayments.map((p) => {
+      const owner = userMap.get(p.userId);
+      return {
+        id: p.id,
+        user: { name: owner?.name || null, email: owner?.email || "—" },
+        provider: p.provider,
+        providerTxnId: p.providerTxnId,
+        package: p.package,
+        creditsGranted: p.creditsGranted / MICRO_PER_CREDIT,
+        amount: p.amount,
+        currency: p.currency,
+        status: p.status,
+        createdAt: p.createdAt,
+      };
+    });
+
     res.json({
+      overview: {
+        totalGrossRevenueBdt,
+        totalAiCostUsd: Number(totalApiCostUsd.toFixed(4)),
+        totalAiCostBdt,
+        totalNetProfitBdt,
+        profitMarginPct,
+        totalCreditsSold: Math.round(totalCreditsSold),
+        totalCreditsUsed: Math.round(totalCreditsUsed),
+        avgProfitPerCustomer,
+        payingCustomersCount,
+        currentMultiplier,
+      },
+      packageEconomics,
+      profitabilityByPlan,
+      customerProfitability,
+      financialTrends,
       transactions,
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || "Failed to fetch finance data" });
+    res.status(500).json({ error: err.message || "Failed to fetch finance overview" });
+  }
+});
+
+/**
+ * POST /api/admin/finance/multiplier
+ * Update Global Pricing Multiplier with confirmation & audit logging
+ */
+adminRouter.post("/finance/multiplier", async (req, res) => {
+  try {
+    const adminUser = (req as any).user;
+    const { multiplier, reason } = req.body;
+
+    const num = Number(multiplier);
+    if (isNaN(num) || num < 1.0 || num > 50) {
+      res.status(400).json({ error: "Multiplier must be a valid number between 1.0 and 50.0" });
+      return;
+    }
+
+    const previousMultiplier = getMarkupMultiplier();
+
+    // 1. Update in system_settings
+    await db
+      .insert(systemSettings)
+      .values({
+        key: "global_markup_multiplier",
+        value: String(num),
+        updatedAt: new Date(),
+        updatedBy: adminUser.email,
+      })
+      .onConflictDoUpdate({
+        target: systemSettings.key,
+        set: {
+          value: String(num),
+          updatedAt: new Date(),
+          updatedBy: adminUser.email,
+        },
+      });
+
+    // 2. Update live in-memory multiplier
+    setMarkupMultiplier(num);
+
+    // 3. Record Security Audit Log
+    await recordAudit(
+      adminUser,
+      "multiplier_changed",
+      "settings",
+      "global_markup_multiplier",
+      `Changed AI pricing multiplier from ${previousMultiplier}x to ${num}x.${reason ? ` Reason: ${reason}` : ""}`
+    );
+
+    res.json({
+      ok: true,
+      previousMultiplier,
+      newMultiplier: num,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to update pricing multiplier" });
   }
 });
 
@@ -727,7 +989,7 @@ adminRouter.post("/finance/grant", async (req, res) => {
  * GET /api/admin/audit-logs
  * Security Audit Log history
  */
-adminRouter.get("/audit-logs", async (req, res) => {
+adminRouter.get("/audit-logs", async (_req, res) => {
   try {
     const allLogs = await db
       .select()
@@ -789,7 +1051,7 @@ adminRouter.get("/settings", async (_req, res) => {
       envInfo: {
         nodeEnv: process.env.NODE_ENV || "development",
         port: process.env.PORT || 3000,
-        markupMultiplier: process.env.MARKUP_MULTIPLIER || "4",
+        markupMultiplier: String(getMarkupMultiplier()),
         classifierModel: "google/gemini-2.5-flash-lite",
         chatModel: "openai/gpt-5.6-luna",
         summarizeModel: "deepseek/deepseek-chat",
@@ -827,6 +1089,10 @@ adminRouter.post("/settings", async (req, res) => {
               updatedBy: adminUser.email,
             },
           });
+
+        if (key === "global_markup_multiplier" && !isNaN(Number(value))) {
+          setMarkupMultiplier(Number(value));
+        }
       }
     }
 

@@ -21,6 +21,8 @@ export const users = pgTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("emailVerified").notNull(),
   image: text("image"),
+  role: text("role").default("user").notNull(), // "user" | "admin" | "super_admin"
+  isBanned: boolean("is_banned").default(false).notNull(),
   createdAt: timestamp("createdAt", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updatedAt", { withTimezone: true }).notNull(),
 });
@@ -334,6 +336,34 @@ export const usageLogs = pgTable(
     userIdCreatedAtIdx: index("usage_logs_user_id_created_at_idx").on(table.userId, table.createdAt),
   })
 );
+
+export const systemSettings = pgTable("system_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedBy: text("updated_by"),
+});
+
+export const creditAdjustments = pgTable("credit_adjustments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  adminId: text("admin_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  amount: bigint("amount", { mode: "number" }).notNull(), // micro-credits (+ for grant, - for deduction)
+  reason: text("reason").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const auditLogs = pgTable("audit_logs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  adminId: text("admin_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  adminEmail: text("admin_email").notNull(),
+  action: text("action").notNull(), // user_suspended, user_activated, role_changed, credits_adjusted, settings_updated, page_bot_toggled, payment_recorded
+  targetType: text("target_type").notNull(), // user, page, settings, payment
+  targetId: text("target_id"),
+  details: text("details").notNull(),
+  ipAddress: text("ip_address"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
 
 // -------------------------------------------------------------
 // Drizzle Relations

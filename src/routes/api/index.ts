@@ -12,6 +12,7 @@ import { followUpsRouter } from "./followUps";
 import { overviewRouter } from "./overview";
 import { pagesRouter } from "./pages";
 import { eventsRouter } from "./events";
+import { adminRouter } from "./admin";
 
 export const apiRouter = Router();
 
@@ -28,3 +29,4 @@ apiRouter.use("/follow-ups", followUpsRouter);
 apiRouter.use("/overview", overviewRouter);
 apiRouter.use("/pages", pagesRouter);
 apiRouter.use("/events", eventsRouter);
+apiRouter.use("/admin", adminRouter);

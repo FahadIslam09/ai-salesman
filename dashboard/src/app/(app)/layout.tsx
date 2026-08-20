@@ -29,6 +29,7 @@ import {
   IconCalendar,
   IconZap,
   IconChevronDown,
+  IconCrown,
 } from "@/components/Icons";
 
 interface UserProfile {
@@ -36,6 +37,8 @@ interface UserProfile {
   name: string | null;
   email: string;
   image?: string | null;
+  role?: string;
+  isSuperAdmin?: boolean;
 }
 
 interface UserContextValue {
@@ -212,6 +215,24 @@ function SidebarContent({
             <span className="text-[10px] font-medium text-[#059669]">Available balance</span>
           </div>
         </Link>
+
+        {/* Super Admin Control Room Button */}
+        {(user?.isSuperAdmin || user?.role === "super_admin") && (
+          <Link
+            href="/admin"
+            className="group flex items-center justify-between rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-slate-900 to-emerald-950/40 p-2.5 text-xs font-bold text-emerald-400 shadow-sm hover:border-emerald-500/60 hover:bg-slate-900 transition-all"
+          >
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-300">
+                <IconCrown size={15} />
+              </div>
+              <span className="text-white">Super Admin</span>
+            </div>
+            <span className="rounded-md bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-300">
+              Root
+            </span>
+          </Link>
+        )}
 
         {/* User Profile Footer */}
         <div className="flex items-center justify-between rounded-2xl border border-[#E2E8F0] bg-[#FAFBFB] p-2 shadow-[0_1px_2px_rgba(16,24,40,0.03)] transition-all hover:border-[#CBD5E1]">
@@ -445,9 +466,19 @@ function AuthGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     api<{ user?: UserProfile; session?: any }>("/api/auth/get-session")
-      .then((data) => {
+      .then(async (data) => {
         if (data.user) {
-          setUser(data.user);
+          const profile: UserProfile = { ...data.user };
+          try {
+            const adminData = await api<{ isSuperAdmin?: boolean; role?: string }>("/api/admin/me");
+            if (adminData?.isSuperAdmin) {
+              profile.isSuperAdmin = true;
+              profile.role = adminData.role;
+            }
+          } catch {
+            // not super admin
+          }
+          setUser(profile);
         }
         setReady(true);
       })
